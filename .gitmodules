@@ -1,0 +1,3 @@
+[submodule "ecen5713_rpi_ws281x"]
+	path = ecen5713_rpi_ws281x
+	url = https://github.com/hyounjunchang/ecen5713_rpi_ws281x
