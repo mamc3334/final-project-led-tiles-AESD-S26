@@ -6,7 +6,8 @@ import argparse
 import os
 import csv
 
-# SETTINGS (tune these for song)
+# ---- SETTINGS (tune these for Let It Be) ----
+TRACK_INDEX = 1
 CHANNEL = None
 LANE_NOTES = [60, 62, 64, 67]
 MIN_VELOCITY = 20
@@ -101,11 +102,14 @@ def main():
     else:
         output = args.output
 
+    # ---- WRITE CSV ----
     with open(output, "w", newline="") as f:
         writer = csv.writer(f)
         
+        # header
         writer.writerow(["lane", "time_ms", "duration_ms"])
         
+        # rows
         for t in tiles:
             writer.writerow([t["lane"], t["time_ms"], t["duration_ms"]])
 
