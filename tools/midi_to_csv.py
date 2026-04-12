@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 
+# This tool was created with the assistance of Claude AI and ChatGPT
+# Claude wanted to add very complex processing that did not fit the scope of our project
+# I asked ChatGPT to simplify the script greatly.
+# I added the user interaction to select which track to parse and converted to csv as opposed to json
+
 import mido
 import sys
 import argparse
 import os
 import csv
 
-# ---- SETTINGS (tune these for Let It Be) ----
-TRACK_INDEX = 1
+# Settings - configure for track
 CHANNEL = None
 LANE_NOTES = [60, 62, 64, 67]
 MIN_VELOCITY = 20
@@ -102,14 +106,12 @@ def main():
     else:
         output = args.output
 
-    # ---- WRITE CSV ----
+    # Write
     with open(output, "w", newline="") as f:
         writer = csv.writer(f)
         
-        # header
         writer.writerow(["lane", "time_ms", "duration_ms"])
         
-        # rows
         for t in tiles:
             writer.writerow([t["lane"], t["time_ms"], t["duration_ms"]])
 
