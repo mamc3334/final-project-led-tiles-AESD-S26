@@ -4,6 +4,8 @@
  * Usage: ./mp3_player_demo <file.mp3>
  */
 
+// Generated from Claude AI: https://claude.ai/chat/e05980ff-3152-4e54-8500-b6134312b416
+
 #include "mp3_player.h"
 
 #include <stdio.h>
