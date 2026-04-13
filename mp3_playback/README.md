@@ -1,3 +1,5 @@
+// Generated from Claude AI: https://claude.ai/chat/e05980ff-3152-4e54-8500-b6134312b416
+
 # MP3 Background Player using libmpg123 + libout123
 
 ## Files
@@ -8,15 +10,16 @@
 
 ## Dependencies
 
-### Host (Ubuntu/Debian)
+### Host (Ubuntu/Debian/Raspberry Pi)
 ```sh
-sudo apt-get install libmpg123-dev
+sudo apt-get install mpg123 libmpg123-dev
 ```
-`libout123` is bundled with the mpg123 package — no separate install needed.
+`mpg123` provides the audio output plugin `.so` files (ALSA, OSS, etc.) that
+`libout123` needs at runtime. `libmpg123-dev` provides the headers for compiling.
 
 ### Host (Fedora/RHEL)
 ```sh
-sudo dnf install mpg123-devel
+sudo dnf install mpg123 mpg123-devel
 ```
 
 ### Buildroot (AArch64 embedded target)

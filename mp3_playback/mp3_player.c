@@ -13,8 +13,6 @@
  *   BR2_PACKAGE_MPG123=y
  */
 
-// Generated from Claude AI: https://claude.ai/chat/e05980ff-3152-4e54-8500-b6134312b416
-
 #include "mp3_player.h"
 
 #include <mpg123.h>
@@ -96,8 +94,24 @@ static void *playback_thread(void *arg)
         goto done;
     }
 
-    if (out123_open(ao, NULL, NULL) != OUT123_OK) {
-        fprintf(stderr, "[mp3_player] out123_open: %s\n", out123_strerror(ao));
+    /* Try drivers in order of preference. out123_open() takes a driver name
+     * as the second argument — "alsa" bypasses the module-dir lookup that
+     * fails on some systems (e.g. Raspberry Pi with custom installs).
+     * The device string targets card 2 (bcm2835 headphone jack) explicitly
+     * since "default" may resolve to an HDMI output on Raspberry Pi. */
+    const char *drivers[] = { "alsa", "oss", "pulse", NULL };
+    const char *devices[]  = { "hw:2,0", NULL, NULL, NULL };
+    int opened = 0;
+    for (int i = 0; drivers[i] != NULL; i++) {
+        if (out123_open(ao, drivers[i], devices[i]) == OUT123_OK) {
+            printf("[mp3_player] Using audio driver: %s, device: %s\n",
+                   drivers[i], devices[i] ? devices[i] : "default");
+            opened = 1;
+            break;
+        }
+    }
+    if (!opened) {
+        fprintf(stderr, "[mp3_player] out123_open: could not open any audio driver (tried alsa, oss, pulse)\n");
         out123_del(ao);
         mpg123_close(mh);
         mpg123_delete(mh);
