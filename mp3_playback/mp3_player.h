@@ -1,0 +1,59 @@
+// Generated from Claude AI: https://claude.ai/chat/e05980ff-3152-4e54-8500-b6134312b416
+#ifndef MP3_PLAYER_H
+#define MP3_PLAYER_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct mp3_player mp3_player_t;
+
+/**
+ * Create a new mp3 player instance.
+ * Returns NULL on failure.
+ */
+mp3_player_t *mp3_player_create(void);
+
+/**
+ * Start playing an mp3 file in the background (non-blocking).
+ * If a track is already playing, it is stopped first.
+ *
+ * @param player  Player instance.
+ * @param path    Path to the .mp3 file.
+ * @return        0 on success, -1 on error.
+ */
+int mp3_player_play(mp3_player_t *player, const char *path);
+
+/**
+ * Stop playback. Blocks until the background thread exits.
+ */
+void mp3_player_stop(mp3_player_t *player);
+
+/**
+ * Returns 1 if a track is currently playing, 0 otherwise.
+ */
+int mp3_player_is_playing(mp3_player_t *player);
+
+/**
+ * Returns the current playback position in seconds.
+ * Returns 0.0 if nothing is playing or the stream hasn't started yet.
+ *
+ * Thread-safe — can be called from any thread at any time.
+ *
+ * Example:
+ *   double pos = mp3_player_get_position(player);
+ *   printf("Position: %02d:%02d\n", (int)pos / 60, (int)pos % 60);
+ */
+double mp3_player_get_position(mp3_player_t *player);
+
+/**
+ * Destroy the player and free all resources.
+ * Stops playback if running.
+ */
+void mp3_player_destroy(mp3_player_t *player);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* MP3_PLAYER_H */
