@@ -101,12 +101,9 @@ void parseargs(int argc, char **argv)
 
 /**
  * @brief Checks for hits based on current keys pressed and active frame
- * @param keys Array of currently pressed keys - 10 keys - 
- * 0-3: p1 lanes, 4-7: p2 lanes, 8: esc, 9: enter
+ * @param keys Bitfield representing keys currently pressed by players (lower 4 bits for player 1, upper 4 bits for player 2)
  * 
- * @return Array of hits and misses for each lane and player
- *   - 4 or 8 values depending on number of players - 0: no hit, 1: hit
- *   - 0 for no key press, 1 for key press and hit, 2 for key press and miss
+ * @return Bitfield representing hits for each player (lower 4 bits for player 1, upper 4 bits for player 2)
  */
 static uint8_t check_for_hits(uint8_t keys)
 {
@@ -118,7 +115,16 @@ static uint8_t check_for_hits(uint8_t keys)
 
     uint8_t hits = active_lanes & keys; //bitwise AND to get hits for player 1.
 
-    hits |= (active_lanes & (keys >> 4)) << 4; //bitwise AND to get hits for player 2 and shift back to upper 4 bits
+    //SCORING
+    p1_score += 10 * __builtin_popcount(hits); //increment score by number of hits
+    p1_score -= 10 * __builtin_popcount(active_lanes & ~keys); //decrement score by number of misses
+
+    uint8_t p2_hits = (active_lanes & (keys >> 4)) << 4;
+
+    p2_score += 10 * __builtin_popcount(p2_hits);
+    p2_score -= 10 * __builtin_popcount((active_lanes & ~(keys >> 4)));
+
+    hits |= p2_hits; 
 
     return hits;
 }
