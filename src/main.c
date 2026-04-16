@@ -174,14 +174,14 @@ int main(int argc, char **argv)
     parseargs(argc, argv);
     
     //load frame generator
-    if((retval == init_frame()) != 0)
+    if((retval = init_frame()) != 0)
     {
         fprintf(stderr, "ERROR: Initializing frame generator failed.\n");
         return retval;
     }
 
     //Get input device
-    if((retval == input_init()) != 0)
+    if((retval = input_init()) != 0)
     {
         fprintf(stderr, "ERROR: Initializing keyboard input failed.\n");
         return retval;
