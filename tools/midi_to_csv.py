@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 
-# This tool was created with the assistance of Claude AI and ChatGPT
-# Claude wanted to add very complex processing that did not fit the scope of our project
-# I asked ChatGPT to simplify the script greatly.
-# I added the user interaction to select which track to parse and converted to csv as opposed to json
-
 import mido
 import sys
 import argparse
@@ -15,7 +10,6 @@ import csv
 CHANNEL = None
 LANE_NOTES = [60, 62, 64, 67]
 MIN_VELOCITY = 20
-
 
 def extract_notes(mid, track_num):
     track = mid.tracks[track_num]
@@ -54,27 +48,43 @@ def map_to_lane(note):
     return None
 
 
-def build_tiles(mid, notes):
-    tiles = []
+# def build_tiles(mid, notes):
+#     tiles = []
 
-    for start, note, dur in notes:
+#     for start, note, dur in notes:
+#         lane = map_to_lane(note)
+#         if lane is None:
+#             continue
+
+#         tiles.append({
+#             "lane": lane,
+#             "time_ms": round(ticks_to_ms(mid, start), 1),
+#             "duration_ms": round(ticks_to_ms(mid, dur), 1)
+#         })
+
+#     return sorted(tiles, key=lambda x: x["time_ms"])
+
+def get_active(midi, notes):
+    # Convert notes to ms and filter by lane immediately
+    active_segments = []
+    max_ms = 0
+    for start_ticks, note, dur_ticks in notes:
         lane = map_to_lane(note)
-        if lane is None:
-            continue
+        if lane is not None:
+            start_ms = ticks_to_ms(midi, start_ticks)
+            end_ms = start_ms + ticks_to_ms(midi, dur_ticks)
+            active_segments.append((lane, start_ms, end_ms))
+            if end_ms > max_ms:
+                max_ms = end_ms
 
-        tiles.append({
-            "lane": lane,
-            "time_ms": round(ticks_to_ms(mid, start), 1),
-            "duration_ms": round(ticks_to_ms(mid, dur), 1)
-        })
-
-    return sorted(tiles, key=lambda x: x["time_ms"])
+    return active_segments, max_ms
 
 
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("midi")
-    p.add_argument("--output", default=None)
+    p.add_argument("--output", default=None, help="Output CSV file path (default: ../beatmaps/<midi_filename>.csv)")
+    p.add_argument("--fps", type=int, default=20, help="Frames per second for the output CSV (default: 20)")
     args = p.parse_args()
 
     if not os.path.exists(args.midi):
@@ -96,7 +106,12 @@ def main():
         print("Error: Please enter a single digit.")
 
     notes = extract_notes(mid, int(user_input))
-    tiles = build_tiles(mid, notes)
+    # tiles = build_tiles(mid, notes)
+    active_tiles, max_ms = get_active(mid, notes)
+
+    # Calculate total frames
+    frame_duration_ms = 1000 / args.fps
+    total_frames = int(max_ms / frame_duration_ms) + 1
 
     # Build output path
     midi_filename = os.path.splitext(os.path.basename(args.midi))[0]
@@ -110,12 +125,22 @@ def main():
     with open(output, "w", newline="") as f:
         writer = csv.writer(f)
         
-        writer.writerow(["lane", "time_ms", "duration_ms"])
+        writer.writerow(["lane_0", "lane_1", "lane_2", "lane_3"])
         
-        for t in tiles:
-            writer.writerow([t["lane"], t["time_ms"], t["duration_ms"]])
+        for f_idx in range(total_frames):
+            current_time_ms = f_idx * frame_duration_ms
+            
+            # Initialize lanes as inactive (0)
+            lanes = [0, 0, 0, 0]
+            
+            # Check if current frame time falls within any note segment
+            for lane, start, end in active_tiles:
+                if start <= current_time_ms <= end:
+                    lanes[lane] = 1
+            
+            writer.writerow(lanes)
 
-    print(f"Generated {len(tiles)} tiles and wrote to {output}")
+    print(f"Generated {total_frames} frames at {args.fps}fps and wrote to {output}")
 
 
 if __name__ == "__main__":
