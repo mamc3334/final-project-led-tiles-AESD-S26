@@ -29,7 +29,7 @@ void start_frame()
 
 //update top row of matrix with current frame
 //update hit zone row with hits from check_for_hits
-void new_frame(uint8_t* hits)
+void new_frame(uint8_t hits)
 {
     
 }

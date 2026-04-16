@@ -18,13 +18,12 @@ static char* beatmap = SONG;
 static volatile uint8_t game_over = 0;
 static uint8_t players = NUM_PLAYERS;
 
-static uint32_t p1_score = 100;
-static uint32_t p2_score = 100;
+static uint32_t p1_score = 0;
+static uint32_t p2_score = 0;
 
 static void signal_handler(int sig);
 static void parseargs(int argc, char **argv);
-static void check_for_hits(uint8_t* keys, uint8_t* hits);
-
+static uint8_t check_for_hits(uint8_t keys);
 
 static void signal_handler(int sig)
 {
@@ -109,55 +108,19 @@ void parseargs(int argc, char **argv)
  *   - 4 or 8 values depending on number of players - 0: no hit, 1: hit
  *   - 0 for no key press, 1 for key press and hit, 2 for key press and miss
  */
-static void check_for_hits(uint8_t* keys, uint8_t* hits)
+static uint8_t check_for_hits(uint8_t keys)
 {
+    //get active lanes for hit zone row
     uint32_t idx = get_frame_index();
 
-    if(idx < 15) return; //not enough frames have passed to reach hit zone
+    if(idx < 15) return 0; //not enough frames have passed to reach hit zone
     uint8_t active_lanes = get_frame(idx-15);
 
-    for(int lane = 0; lane < 4; lane++)
-    {
-        if(keys[lane])
-        {
-            if(active_lanes & (1<<lane)) //hit
-            {
-                hits[lane] = 1;
-                p1_score+=10;
-            }
-            else //miss
-            {
-                hits[lane] = 2;
-                p1_score-=10;
-            }
-        }
-        else if(active_lanes & (1<<lane)) //missed hit
-        {
-            p1_score-=10;
-        }
-        if(players == 2)
-        {
-            if(keys[lane + 4]) //player 2 keys
-            {
-                if(active_lanes & (1<<lane)) //hit
-                {
-                    hits[lane + 4] = 1;
-                    p2_score+=10;
-                }
-                else //miss
-                {
-                    hits[lane + 4] = 2;
-                    p2_score-=10;
-                }
-            }
-            else if(active_lanes & (1<<lane)) //missed hit
-            {
-                p2_score-=10;
-            }
-        }
-    }
+    uint8_t hits = active_lanes & keys; //bitwise AND to get hits for player 1.
 
-    return;
+    hits |= (active_lanes & (keys >> 4)) << 4; //bitwise AND to get hits for player 2 and shift back to upper 4 bits
+
+    return hits;
 }
 
 int main(int argc, char **argv)
@@ -189,11 +152,14 @@ int main(int argc, char **argv)
     
     running = 1;
 
-    static uint8_t hits[FRAME_SIZE * NUM_PLAYERS] = {0};
-    static uint8_t keys[KEYS_SIZE] = {0};
+    uint16_t key_state = 0;
 
     while(running)
     {
+        game_over = 0;
+        p1_score = 100;
+        p2_score = 100;
+
         //reset frame to beginning of beat map and clear matrix
         start_frame();
 
@@ -203,13 +169,13 @@ int main(int argc, char **argv)
         //get start key
         while(1)
         {
-            input_get_keys(keys);
-            if(keys[ENTER_KEY])
+            key_state = input_get_keys();
+            if(key_state & (1 << ENTER_KEY))
             {
                 printf("Starting game...\n");
                 break;
             }
-            if(keys[ESC_KEY]) // handle exit
+            if(key_state & (1 << ESC_KEY)) // handle exit
             {
                 printf("Exiting game...\n");
                 running = 0;
@@ -220,24 +186,24 @@ int main(int argc, char **argv)
         while(!game_over)
         {
             //poll input
-            input_get_keys(keys);
-            if(keys[ESC_KEY])
+            key_state = input_get_keys();
+            if(key_state & (1 << ESC_KEY))
             {
                 printf("Exiting game...\n");
                 running = 0;
                 break;
             }
-            while(keys[ENTER_KEY])
+            while(key_state & (1 << ENTER_KEY))
             {
                 printf("Pausing game...\n");
                 //pause game until enter key is released
-                input_get_keys(keys);
+                key_state = input_get_keys();
 
                 //TODO: handle frame index during pause
             }
 
             //check for hits and update score
-            check_for_hits(keys, hits);
+            uint8_t hits = check_for_hits((uint8_t)(key_state & 0xFF));
 
 //if player 1 score is 0 or less, game over
 //dont end in two player mode until game over
@@ -248,8 +214,9 @@ int main(int argc, char **argv)
 
             //update led matrix with hits
             //only update top row and hit zone row
-            //hits: 0 for no key press, 1 for key press and hit, 2 for key press and miss
             new_frame(hits);
+
+            usleep(FRAME_DELAY * 1000);
         }
 
         //game completed successfully
@@ -258,29 +225,27 @@ int main(int argc, char **argv)
             //Display score
             printf("\nGame Over!\n");
             printf("Player 1 Score: %d\n", p1_score);
-#if NUM_PLAYERS == 2
-            printf("Player 2 Score: %d\n", p2_score);
+            if(players == 2)
+            {
+                printf("Player 2 Score: %d\n", p2_score);
 
-            if(p1_score > p2_score)
-            {
-                printf("Player 1 Wins!\n");
-                //matrix display winner
+                if(p1_score > p2_score)
+                {
+                    printf("Player 1 Wins!\n");
+                    //matrix display winner
+                }
+                else if(p2_score > p1_score)
+                {
+                    printf("Player 2 Wins!\n");
+                    //matrix display winner
+                }
+                else
+                {
+                    printf("It's a tie!\n");
+                }
             }
-            else if(p2_score > p1_score)
-            {
-                printf("Player 2 Wins!\n");
-                //matrix display winner
-            }
-            else
-            {
-                printf("It's a tie!\n");
-            }
-#endif
         }
     }
-
-    //CLEANUP
-    input_cleanup();
 
     printf("RETURNING %d", retval);
 

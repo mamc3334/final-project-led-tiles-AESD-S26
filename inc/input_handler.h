@@ -22,6 +22,7 @@
 #include <linux/input.h>
 #include <sys/ioctl.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include "game_config.h"
 
 #define INPUT_DIR ("/dev/input") // length = 10
@@ -29,7 +30,7 @@
 
 #define HOLD_DELAY      (FRAME_DELAY)
 #define HOLD_PERIOD     (FRAME_DELAY)
-#define FRAME_DELAY     (30)
+#define FRAME_DELAY     (20)
 
 #define A_KEY (0)
 #define S_KEY (1)
@@ -44,14 +45,8 @@
 
 #define KEYS_SIZE (10)
 
-struct KeyState{
-    pthread_mutex_t lock;
-    uint8_t keys[KEYS_SIZE]; // 0-3: p1 lanes, 4-7: p2 lanes, 8: esc, 9: enter
-};
-
-void input_get_keys(uint8_t* keys);
+uint16_t input_get_keys();
 int input_init();
-void input_cleanup();
 void input_reset();
 
 

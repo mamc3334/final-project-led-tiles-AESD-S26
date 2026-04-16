@@ -25,7 +25,7 @@ int init_frame();
  */
 void start_frame();
 
-void new_frame(uint8_t* hits);
+void new_frame(uint8_t hits);
 
 /**
  *  This is the function called by logic to get the current active lanes at the indicated frame index

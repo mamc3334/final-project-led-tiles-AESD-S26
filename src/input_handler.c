@@ -14,9 +14,7 @@ static int keyboard_fd = 0;
 static char *keyboard_path = NULL;
 static pthread_t input_thread_id;
 
-static struct KeyState inputState = {
-    .keys = {0}
-};
+static atomic_uint_least16_t keyState = 0;
 
 /**
  * @brief Returns path of keyboard device
@@ -126,9 +124,14 @@ void key_event(unsigned short code, unsigned short value)
 
     if(index >= 0)
     {
-        pthread_mutex_lock(&inputState.lock);
-        inputState.keys[index] = value;
-        pthread_mutex_unlock(&inputState.lock);
+        if(value > 0)
+        {
+            atomic_fetch_or(&keyState, (1<<index));
+        }
+        else
+        {
+            atomic_fetch_and(&keyState, ~(1<<index));
+        }
     }
     else
     {
@@ -136,6 +139,16 @@ void key_event(unsigned short code, unsigned short value)
     }
 }
 
+void input_cleanup()
+{
+    if(keyboard_path)
+    {
+        free(keyboard_path);
+        keyboard_path = NULL;
+    }
+
+    if(keyboard_fd >= 0) close(keyboard_fd);
+}
 
 // poll for input events
 void *input_poll(void *arg)
@@ -181,19 +194,9 @@ void *input_poll(void *arg)
 
 // PUBLIC API
 
-void input_get_keys(uint8_t* keys)
+uint16_t input_get_keys()
 {
-    if(!keys)
-    {
-        fprintf(stderr, "[INPUT_HANDLER] input_get_keys: Invalid argument keys is NULL\r\n");
-        return;
-    }
-
-    pthread_mutex_lock(&inputState.lock);
-    memcpy(keys, inputState.keys, KEYS_SIZE);
-    pthread_mutex_unlock(&inputState.lock);
-
-    return;
+    return atomic_load(&keyState);;
 }
 
 int input_init()
@@ -221,14 +224,11 @@ int input_init()
 
     close(keyboard_fd);
 
-    pthread_mutex_init(&inputState.lock, NULL);
-
     //create thread to poll input
     int status = pthread_create(&input_thread_id, NULL, input_poll, NULL);
     if (status != 0)
     {
         fprintf(stderr, "[INPUT_HANDLER] Failed to create input thread: %s", strerror(status));
-        pthread_mutex_destroy(&inputState.lock);
         input_cleanup();
 
         return EXIT_FAILURE;
@@ -238,7 +238,6 @@ int input_init()
     if (status != 0)
     {
         fprintf(stderr, "[INPUT_HANDLER] Failed to detach input thread: %s", strerror(status));
-        pthread_mutex_destroy(&inputState.lock);
         input_cleanup();
 
         return EXIT_FAILURE;
@@ -251,18 +250,5 @@ int input_init()
 
 void input_reset()
 {
-    pthread_mutex_lock(&inputState.lock);
-    memset(inputState.keys, 0, KEYS_SIZE);
-    pthread_mutex_unlock(&inputState.lock);
-}
-
-void input_cleanup()
-{
-    if(keyboard_path)
-    {
-        free(keyboard_path);
-        keyboard_path = NULL;
-    }
-
-    if(keyboard_fd >= 0) close(keyboard_fd);
+    atomic_store(&keyState, 0);
 }
