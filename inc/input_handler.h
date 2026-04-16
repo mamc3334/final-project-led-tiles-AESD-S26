@@ -21,6 +21,7 @@
 #include <time.h>
 #include <linux/input.h>
 #include <sys/ioctl.h>
+#include <pthread.h>
 #include "game_config.h"
 
 #define INPUT_DIR ("/dev/input") // length = 10
@@ -30,20 +31,28 @@
 #define HOLD_PERIOD     (FRAME_DELAY)
 #define FRAME_DELAY     (30)
 
-#define PRESS 1
-#define HOLD 2
-#define RELEASE 0 
+#define A_KEY (0)
+#define S_KEY (1)
+#define D_KEY (2)
+#define F_KEY (3)
+#define H_KEY (4)
+#define J_KEY (5)
+#define K_KEY (6)
+#define L_KEY (7)
+#define ESC_KEY (8)
+#define ENTER_KEY (9)
 
-extern InputState inputState;
+#define KEYS_SIZE (10)
 
-// char *get_keyboard();
-// void set_keyhold(int fd, unsigned int delay, unsigned int period);
-// void key_press(unsigned short code);
-// void key_release(unsigned short code);
-// void key_hold(unsigned short code);
+struct KeyState{
+    pthread_mutex_t lock;
+    uint8_t keys[KEYS_SIZE]; // 0-3: p1 lanes, 4-7: p2 lanes, 8: esc, 9: enter
+};
+
+void input_get_keys(uint8_t* keys);
 int input_init();
 void input_cleanup();
-int input_poll();
+void input_reset();
 
 
 #endif /* INPUT_HANDLER_H */

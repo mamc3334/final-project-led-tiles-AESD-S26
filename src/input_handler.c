@@ -10,25 +10,13 @@
 
 #include "input_handler.h"
 
-//restrict to game keys - uses definitions from linux/input-event-codes.h
-//able to add more as needed
-const char *key_names[KEY_MAX + 1] = {
-    [KEY_ESC]        = "ESC",
-    [KEY_A]          = "A", // For Player 2
-    [KEY_S]          = "S",
-    [KEY_D]          = "D",
-    [KEY_F]          = "F",
-    [KEY_H]          = "H", //player 1 keys
-    [KEY_J]          = "J",
-    [KEY_K]          = "K",
-    [KEY_L]          = "L",
-    [KEY_ENTER]      = "ENTER",
+static int keyboard_fd = 0;
+static char *keyboard_path = NULL;
+static pthread_t input_thread_id;
+
+static struct KeyState inputState = {
+    .keys = {0}
 };
-
-int keyboard_fd = 0;
-char *keyboard_path = NULL;
-
-InputState inputState = {0};
 
 /**
  * @brief Returns path of keyboard device
@@ -87,74 +75,129 @@ void set_keyhold(int fd, unsigned int delay, unsigned int period)
     return;
 }
 
-void key_press(Tile *tiles, unsigned short code)
+void key_event(unsigned short code, unsigned short value)
 {
-    KeyState key;
-    unsigned short lane = 0;
-
+    int index = -1;
     switch(code){
         case KEY_A:
-            key = inputState.p2_lane1;
-            lane = 1;
+            index = A_KEY;
             break;
         
         case KEY_S:
-            key = inputState.p2_lane2;
-            lane = 2;
+            index = S_KEY;
             break;
         
         case KEY_D:
-            key = inputState.p2_lane3;
-            lane = 3;
+            index = D_KEY;
             break;
         
         case KEY_F:
-            key = inputState.p2_lane4;
-            lane = 4;
+            index = F_KEY;
             break;
         
         case KEY_H:
-            key = inputState.p1_lane1;
-            lane = 1;
+            index = H_KEY;
             break;
         
         case KEY_J:
-            key = inputState.p1_lane2;
-            lane = 2;
+            index = J_KEY;
             break;
         
         case KEY_K:
-            key = inputState.p1_lane3;
-            lane = 3;
+            index = K_KEY;
             break;
         
         case KEY_L:
-            key = inputState.p1_lane4;
-            lane = 4;
+            index = L_KEY;
             break;
         
         case KEY_ESC:
-            key = inputState.esc;
+            index = ESC_KEY;
             break;
         
         case KEY_ENTER:
-            key = inputState.enter;
+            index = ENTER_KEY;
             break;
 
         default:
-            printf("Ignoring invalid key input: %s", key_names[code]);
+            printf("Ignoring invalid key input: %u", code);
             return;
     }
 
-    if(lane>0)
+    if(index >= 0)
     {
-        calculate_score(tiles, lane, key.press_time);
+        pthread_mutex_lock(&inputState.lock);
+        inputState.keys[index] = value;
+        pthread_mutex_unlock(&inputState.lock);
     }
+    else
+    {
+        printf("Ignoring invalid key input: %u", code);
+    }
+}
+
+
+// poll for input events
+void *input_poll(void *arg)
+{
+    struct input_event event;
+    ssize_t bytes_read;
+
+    //open keyboard
+    if((keyboard_fd = open(keyboard_path, O_RDONLY)) < 0)
+    {
+        fprintf(stderr, "INPUT_HANDLER: Keyboard device path cannot be opened. Errno: %s\r\n", strerror(errno));
+        goto exit;
+    }
+
+    while(running)
+    {
+        bytes_read = read(keyboard_fd, &event, sizeof(event));
+ 
+        if (bytes_read < 0) {
+            if (errno == EINTR) continue; //signal - handle safely
+            fprintf(stderr, "[INPUT_HANDLER] Read keyboard event. Errno: %s\r\n", strerror(errno));
+            goto exit;
+        }
+ 
+        /* We only care about key events (EV_KEY) */
+        if (event.type != EV_KEY)
+            continue;
+
+        switch (event.value) {
+            case 0: case 1: case 2:  
+                key_event(event.code, event.value);   
+                break;
+            default: 
+                fprintf(stderr, "[INPUT_HANDLER] Keyboard event value=%u, code=%u\r\n", event.value, event.code); 
+                break;
+        }
+    }
+
+    exit:
+    input_cleanup();
+    pthread_exit(NULL);
+}
+
+// PUBLIC API
+
+void input_get_keys(uint8_t* keys)
+{
+    if(!keys)
+    {
+        fprintf(stderr, "[INPUT_HANDLER] input_get_keys: Invalid argument keys is NULL\r\n");
+        return;
+    }
+
+    pthread_mutex_lock(&inputState.lock);
+    memcpy(keys, inputState.keys, KEYS_SIZE);
+    pthread_mutex_unlock(&inputState.lock);
+
+    return;
 }
 
 int input_init()
 {
-    //INITIALIZE INPUT HANDLER
     //Get keyboard input
     keyboard_path = get_keyboard();
     if(!keyboard_path)
@@ -178,7 +221,39 @@ int input_init()
 
     close(keyboard_fd);
 
+    pthread_mutex_init(&inputState.lock, NULL);
+
+    //create thread to poll input
+    int status = pthread_create(&input_thread_id, NULL, input_poll, NULL);
+    if (status != 0)
+    {
+        fprintf(stderr, "[INPUT_HANDLER] Failed to create input thread: %s", strerror(status));
+        pthread_mutex_destroy(&inputState.lock);
+        input_cleanup();
+
+        return EXIT_FAILURE;
+    }
+
+    status = pthread_detach(input_thread_id);
+    if (status != 0)
+    {
+        fprintf(stderr, "[INPUT_HANDLER] Failed to detach input thread: %s", strerror(status));
+        pthread_mutex_destroy(&inputState.lock);
+        input_cleanup();
+
+        return EXIT_FAILURE;
+    }
+
+    printf("Input handler thread initialized and detached successfully.\r\n");
+
     return 0;
+}
+
+void input_reset()
+{
+    pthread_mutex_lock(&inputState.lock);
+    memset(inputState.keys, 0, KEYS_SIZE);
+    pthread_mutex_unlock(&inputState.lock);
 }
 
 void input_cleanup()
@@ -190,76 +265,4 @@ void input_cleanup()
     }
 
     if(keyboard_fd >= 0) close(keyboard_fd);
-}
-
-int input_poll(Tile *tiles)
-{
-    if(!keyboard_path)
-    {
-        fprintf(stderr, "INPUT_HANDLER: Could not poll - no keyboard device. Errno: %s\r\n", strerror(errno));
-
-        return errno;
-    }
-
-    if((keyboard_fd = open(keyboard_path, O_RDONLY)) < 0)
-    {
-        fprintf(stderr, "INPUT_HANDLER: Keyboard device path cannot be opened. Errno: %s\r\n", strerror(errno));
-
-        return EISDIR;
-    }
-
-    //poll for 
-    struct pollfd pfd = {
-        .fd     = keyboard_fd,
-        .events = POLLIN,
-    };
- 
-    int ret = poll(&pfd, 1, FRAME_DELAY);
- 
-    if (ret == EINTR) return EINTR;
-
-    if (ret < 0)
-    {
-        fprintf(stderr, "INPUT_HANDLER: poll failed. Errno: %s\r\n", strerror(errno));
-        return -1;
-    }
- 
-    if (ret == 0) return 0; // no input - timeout
-
-    //INPUT RECIEVED
-
-    struct input_event event;
-    ssize_t bytes_read = read(keyboard_fd, &event, sizeof(event));
-    close(keyboard_fd);
- 
-    if (bytes_read < 0) {
-        if (errno == EINTR) return EINTR;
-        fprintf(stderr, "INPUT_HANDLER: Read keyboard event. Errno: %s\r\n", strerror(errno));
-        
-        return EXIT_FAILURE;
-    }
-
-    //Treat oither inputs - (not key) as timeout
-    if (event.type != EV_KEY)
-        return 0;
-
-    unsigned short press = 0;
-
-    switch (event.value) {
-        case PRESS: 
-            key_press(tiles, event.code);
-            break;
-        case RELEASE: 
-            key_release(tiles, event.code);
-            break;
-        case HOLD:
-            key_hold(tiles, event.code);   
-            break;
-
-        default: 
-            fprintf(stderr, "INPUT_HANDLER: Invalid key action. value=%u. code=%u\r\n", event.value, event.code); 
-            break;
-    }
-
-    return 1;
 }
