@@ -1,3 +1,5 @@
 *.o
 *.d
 mp3_player_demo
+server
+piano_tiles
