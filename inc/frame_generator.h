@@ -10,7 +10,7 @@
 #ifndef FRAME_GENERATOR_H
 #define FRAME_GENERATOR_H
 
-#include "game_config.h"
+#include "config_reader.h"
 
 #define FRAME_SIZE (4) // 4 bytes representing the 4 lanes of the game, each byte is a bitfield representing the state of that lane for that frame (1 = active tile, 0 = no tile)
 

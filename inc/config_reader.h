@@ -1,13 +1,13 @@
 #ifndef CONFIG_LOADER_H
 #define CONFIG_LOADER_H
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #define CONFIG_MAX_PATH 256
 
@@ -37,6 +37,13 @@ static const LaneColor lane_colors[4] = {
     {{220,60,200}, {255,255,255}},
     {{255,150,0}, {255,255,255}}
 };
+
+typedef struct {
+    bool running;
+    bool gameover;
+} GameState;
+
+extern GameState gs;
 
 typedef struct {
     // [display]

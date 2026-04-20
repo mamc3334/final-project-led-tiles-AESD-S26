@@ -8,18 +8,18 @@
  */
 
 #include "input_handler.h"
-#include "game_config.h"
 #include "frame_generator.h"
+#include "config_reader.h"
 #include <stdarg.h>
 #include <getopt.h>
 
-volatile uint8_t running = 0;
-static char* beatmap = SONG;
-static volatile uint8_t game_over = 0;
-static uint8_t players = NUM_PLAYERS;
+GameState gs = {false, false};
 
 static uint32_t p1_score = 0;
 static uint32_t p2_score = 0;
+
+static GameConfig gc = {0};
+static char config_file[CONFIG_MAX_PATH] = "config.cfg";
 
 static void signal_handler(int sig);
 static void parseargs(int argc, char **argv);
@@ -29,7 +29,7 @@ static void signal_handler(int sig)
 {
     if (sig == SIGINT || sig == SIGTERM)
     {
-        running = 0;
+        gs.running = 0;
     }
     else
     {
@@ -47,6 +47,7 @@ void parseargs(int argc, char **argv)
 		{"help", no_argument, 0, 'h'},
 		{"players", required_argument, 0, 'p'},
         {"song", required_argument, 0, 's'},
+        {"config", required_argument, 0, 'c'},
 		{"version", no_argument, 0, 'v'},
 		{0, 0, 0, 0}
 	};
@@ -59,6 +60,9 @@ void parseargs(int argc, char **argv)
 		if (c == -1)
 			break;
 
+
+        size_t len;
+
 		switch (c)
 		{
 		case 0:
@@ -70,19 +74,29 @@ void parseargs(int argc, char **argv)
 				"-h (--help)    - this information\n"
 				"-p (--players) - 1 or 2 player mode (default 1)\n"
                 "-s (--song)    - specify beatmap file (default 'beatmaps/LetitBe.csv'\n"
+                "-c (--config)  - specify configuration file"
 				"-v (--version) - version information\n"
 				, argv[0]);
 			exit(-1);
 
 		case 'p':
-            //MAKE GAME CONFIG 1 player
-            players = atoi(optarg);
+            gc.num_players = atoi(optarg);
 
 			break;
 
         case 's':
-            //specify song
-            beatmap = optarg;
+            len = strlen(optarg); 
+            len = (len > (CONFIG_MAX_PATH - 1)) ? (CONFIG_MAX_PATH - 1) : len;
+            strncpy(gc.song, optarg, len);
+            gc.song[len] = '\0';
+
+            break;
+
+        case 'c':
+            len = strlen(optarg); 
+            len = (len > (CONFIG_MAX_PATH - 1)) ? (CONFIG_MAX_PATH - 1) : len;
+            strncpy(config_file, optarg, len);
+            config_file[len] = '\0';
 
             break;
 
@@ -141,6 +155,9 @@ int main(int argc, char **argv)
 
     //parse args
     parseargs(argc, argv);
+
+    config_loader_load(config_file, &gc);
+    config_loader_print(&gc);
     
     //load frame generator
     if((retval = init_frame()) != 0)
@@ -156,13 +173,13 @@ int main(int argc, char **argv)
         return retval;
     }
     
-    running = 1;
+    gs.running = 1;
 
     uint16_t key_state = 0;
 
-    while(running)
+    while(gs.running)
     {
-        game_over = 0;
+        gs.gameover = 0;
         p1_score = 100;
         p2_score = 100;
 
@@ -184,19 +201,19 @@ int main(int argc, char **argv)
             if(key_state & (1 << ESC_KEY)) // handle exit
             {
                 printf("Exiting game...\n");
-                running = 0;
+                gs.running = 0;
                 break;
             }
         }
 
-        while(!game_over)
+        while(!gs.gameover)
         {
             //poll input
             key_state = input_get_keys();
             if(key_state & (1 << ESC_KEY))
             {
                 printf("Exiting game...\n");
-                running = 0;
+                gs.running = 0;
                 break;
             }
             while(key_state & (1 << ENTER_KEY))
@@ -213,9 +230,9 @@ int main(int argc, char **argv)
 
 //if player 1 score is 0 or less, game over
 //dont end in two player mode until game over
-            if((players == 1) && (p1_score <= 0))
+            if((gc.num_players == 1) && (p1_score <= 0))
             {
-                game_over = 1;
+                gs.gameover = 1;
             }
 
             //update led matrix with hits
@@ -226,12 +243,12 @@ int main(int argc, char **argv)
         }
 
         //game completed successfully
-        if(game_over && running)
+        if(gs.gameover && gs.running)
         {
             //Display score
             printf("\nGame Over!\n");
             printf("Player 1 Score: %d\n", p1_score);
-            if(players == 2)
+            if(gc.num_players == 2)
             {
                 printf("Player 2 Score: %d\n", p2_score);
 
