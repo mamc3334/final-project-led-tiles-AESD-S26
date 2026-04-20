@@ -163,7 +163,7 @@ void *input_poll(void *arg)
         goto exit;
     }
 
-    while(running)
+    while(gs.running)
     {
         bytes_read = read(keyboard_fd, &event, sizeof(event));
  
