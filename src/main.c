@@ -30,6 +30,8 @@ GameState gs = {false, false};
 static uint32_t p1_score = 0;
 static uint32_t p2_score = 0;
 
+static char* beatmap = SONG;
+
 static GameConfig gc = {0};
 static char config_file[CONFIG_MAX_PATH] = "config.cfg";
 
@@ -176,7 +178,7 @@ void parseargs(int argc, char **argv)
 				"-p (--players) - 1 or 2 player mode (default 1)\n"
                 "-s (--song)    - specify beatmap file (default 'beatmaps/LetitBe.csv'\n"
                 "-c (--config)  - specify configuration file"
-                "-d (--download) - download beatmap from server (%s:%d)\n"
+                "-d (--download) - download beatmap from server\n"
 				"-v (--version) - version information\n"
 				, argv[0]);
 			exit(-1);
