@@ -92,8 +92,12 @@ int main(void) {
     socklen_t client_len = sizeof(client_addr);
     int opt = 1;
 
-    signal(SIGINT,  handle_signal);
-    signal(SIGTERM, handle_signal);
+    struct sigaction sa;
+    sa.sa_handler = handle_signal;
+    sa.sa_flags = 0;  // no SA_RESTART — let SIGINT interrupt accept()
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGINT,  &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) { perror("socket"); return EXIT_FAILURE; }
@@ -117,7 +121,7 @@ int main(void) {
     while (running) {
         client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
         if (client_fd < 0) {
-            if (errno == EINTR) continue;
+            if (errno == EINTR) break;  // signal received — exit cleanly
             perror("accept");
             break;
         }

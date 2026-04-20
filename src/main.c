@@ -23,7 +23,7 @@
 #define SERVER_IP   "127.0.0.1"
 #define SERVER_PORT 9000
 #define BUFFER_SIZE 4096
-#define OUTPUT_FILE "downloaded_beatmap.csv"
+#define OUTPUT_FILE "downloaded_beatmap"
 
 volatile uint8_t running = 0;
 static char* beatmap = SONG;
@@ -147,7 +147,7 @@ void parseargs(int argc, char **argv)
         {"help",     no_argument,       0, 'h'},
         {"players",  required_argument, 0, 'p'},
         {"song",     required_argument, 0, 's'},
-        {"upload",   no_argument,       0, 'u'},
+        {"download", no_argument,       0, 'd'},
         {"version",  no_argument,       0, 'v'},
         {0, 0, 0, 0}
     };
@@ -155,7 +155,7 @@ void parseargs(int argc, char **argv)
     while (1)
     {
         index = 0;
-        c = getopt_long(argc, argv, "hp:s:uv", longopts, &index);
+        c = getopt_long(argc, argv, "hp:s:dv", longopts, &index);
 
         if (c == -1)
             break;
@@ -167,11 +167,11 @@ void parseargs(int argc, char **argv)
 
         case 'h':
             fprintf(stderr, "Usage: %s \n"
-                "-h (--help)    - this information\n"
-                "-p (--players) - 1 or 2 player mode (default 1)\n"
-                "-s (--song)    - specify beatmap file (default 'beatmaps/LetitBe.csv')\n"
-                "-u (--upload)  - download beatmap from server (%s:%d)\n"
-                "-v (--version) - version information\n"
+                "-h (--help)     - this information\n"
+                "-p (--players)  - 1 or 2 player mode (default 1)\n"
+                "-s (--song)     - specify beatmap file (default 'beatmaps/LetitBe.csv')\n"
+                "-d (--download) - download beatmap from server (%s:%d)\n"
+                "-v (--version)  - version information\n"
                 , argv[0], SERVER_IP, SERVER_PORT);
             exit(-1);
 
@@ -185,9 +185,9 @@ void parseargs(int argc, char **argv)
             beatmap = optarg;
             break;
 
-        case 'u':
-            // TODO: not yet implemented
-            fprintf(stderr, "WARNING: -u flag is not yet implemented.\n");
+        case 'd':
+            fprintf(stderr, "Downloading Beatmap from server.\n");
+            download_beatmap();
             break;
 
         case 'v':
@@ -240,8 +240,12 @@ int main(int argc, char **argv)
     int retval = 0;
 
     //handle signals
-    signal(SIGINT,  signal_handler);
-    signal(SIGTERM, signal_handler);
+    struct sigaction sa;
+    sa.sa_handler = signal_handler;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGINT,  &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
 
     //parse args
     parseargs(argc, argv);
@@ -277,6 +281,7 @@ int main(int argc, char **argv)
         input_reset();
 
         //get start key
+        while(1)
         {
             key_state = input_get_keys();
             if(key_state & (1 << ENTER_KEY))
