@@ -1,10 +1,17 @@
+// Generated from Claude AI: https://claude.ai/chat/e05980ff-3152-4e54-8500-b6134312b4
+16
+// Reviewed by: Hyounjun Chang
+
 /*
  * main.c — Example: play an MP3 in the background while doing other work
  *
  * Usage: ./mp3_player_demo <file.mp3>
+ *
+ * Controls (press Enter after each key):
+ *   p — pause
+ *   r — resume
+ *   q — quit
  */
-
-// Generated from Claude AI: https://claude.ai/chat/e05980ff-3152-4e54-8500-b6134312b416
 
 #include "mp3_player.h"
 
@@ -33,20 +40,38 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    /* --- Your main program work goes here --- */
-    printf("Main thread is free to do other work while music plays...\n");
+    printf("Controls: [p] pause  [r] resume  [q] quit\n");
 
-    int seconds = 0;
-    while (mp3_player_is_playing(player)) {
-        printf("  [%3ds] doing work...\n", ++seconds);
-        sleep(1);
+    int ch;
+    while ((ch = getchar()) != EOF) {
+        if (ch == '\n') continue;
+
+        switch (ch) {
+        case 'p':
+            mp3_player_pause(player);
+            printf("Paused at %02d:%02d\n",
+                   (int)mp3_player_get_position(player) / 60,
+                   (int)mp3_player_get_position(player) % 60);
+            break;
+        case 'r':
+            mp3_player_resume(player);
+            printf("Resumed\n");
+            break;
+        case 'q':
+            mp3_player_stop(player);
+            goto done;
+        default:
+            printf("Unknown command. Controls: [p] pause  [r] resume  [q] quit\n");
+            break;
+        }
+
+        if (!mp3_player_is_playing(player)) {
+            printf("Playback finished.\n");
+            break;
+        }
     }
 
-    /* Or stop early: */
-    /* sleep(5); */
-    /* mp3_player_stop(player); */
-
-    printf("Done.\n");
+done:
     mp3_player_destroy(player);
     return 0;
 }
