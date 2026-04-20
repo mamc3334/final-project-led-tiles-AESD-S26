@@ -1,35 +1,43 @@
 # Developed from PES assignment 1 makefile and googled how to make the echo statement in help phony
-EXEC	= build/piano_tiles
-CC 		= $(CROSS_COMPILE)gcc
+EXEC    = build/piano_tiles
+CC      = $(CROSS_COMPILE)gcc
 
 # Flags
-CFLAGS 	= -Wall -Werror -Isrc -Iinc -pthread
+CFLAGS  = -Wall -Werror -Isrc -Iinc -pthread
 LDFLAGS = -pthread
 
-# Auto-discover all .c and .h files
+# Auto-discover all .c files
 SRCS = $(wildcard src/*.c)
-OBJ = $(SRCS:src/%.c=build/%.o)
+OBJ  = $(SRCS:src/%.c=build/%.o)
+DEPS = $(OBJ:.o=.d)
 
 # Target
-all: $(EXEC)
+all: build $(EXEC)
+
+# Create build directory
+build:
+	mkdir -p build
 
 # Link
 $(EXEC): $(OBJ)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-# Compile
+# Compile (with dependency file generation)
 build/%.o: src/%.c
-	$(CC) -o $@ -c $< $(CFLAGS)
+	$(CC) -o $@ -c $< $(CFLAGS) -MMD -MP
+
+# Pull in generated dependency files
+-include $(DEPS)
 
 # Clean
 .PHONY: clean
 clean:
-	@rm -rf build/*
+	@rm -rf build
 
 # Help
 .PHONY: help
 help:
-	@@echo "\
+	@echo "\
 Usage: make [target] [CROSS_COMPILE=<prefix>]\n\
 \n\
 Available targets: \n\
