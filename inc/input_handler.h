@@ -18,20 +18,36 @@
 #include <errno.h>
 #include <signal.h>
 #include <dirent.h>
+#include <time.h>
 #include <linux/input.h>
 #include <sys/ioctl.h>
+#include <pthread.h>
+#include <stdatomic.h>
+#include "game_config.h"
 
 #define INPUT_DIR ("/dev/input") // length = 10
 #define PATH_SIZE (267) //10 + 255 + 2
 
-#define HOLD_DELAY 400
-#define HOLD_PERIOD 100
+#define HOLD_DELAY      (FRAME_DELAY)
+#define HOLD_PERIOD     (FRAME_DELAY)
+#define FRAME_DELAY     (20)
 
-char *get_keyboard();
-void set_keyhold(int fd, unsigned int delay, unsigned int period);
-void key_press(unsigned short code);
-void key_release(unsigned short code);
-void key_hold(unsigned short code);
+#define A_KEY (0)
+#define S_KEY (1)
+#define D_KEY (2)
+#define F_KEY (3)
+#define H_KEY (4)
+#define J_KEY (5)
+#define K_KEY (6)
+#define L_KEY (7)
+#define ESC_KEY (8)
+#define ENTER_KEY (9)
+
+#define KEYS_SIZE (10)
+
+uint16_t input_get_keys();
+int input_init();
+void input_reset();
 
 
 #endif /* INPUT_HANDLER_H */

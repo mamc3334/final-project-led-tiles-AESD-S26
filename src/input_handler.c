@@ -10,20 +10,11 @@
 
 #include "input_handler.h"
 
-//restrict to game keys - uses definitions from linux/input-event-codes.h
-//able to add more as needed
-const char *key_names[KEY_MAX + 1] = {
-    [KEY_ESC]        = "ESC",
-    [KEY_A]          = "A", // For Player 2
-    [KEY_S]          = "S",
-    [KEY_D]          = "D",
-    [KEY_F]          = "F",
-    [KEY_H]          = "H", //player 1 keys
-    [KEY_J]          = "J",
-    [KEY_K]          = "K",
-    [KEY_L]          = "L",
-    [KEY_ENTER]      = "ENTER",
-};
+static int keyboard_fd = 0;
+static char *keyboard_path = NULL;
+static pthread_t input_thread_id;
+
+static atomic_uint_least16_t keyState = 0;
 
 /**
  * @brief Returns path of keyboard device
@@ -82,17 +73,182 @@ void set_keyhold(int fd, unsigned int delay, unsigned int period)
     return;
 }
 
-void key_press(unsigned short code)
+void key_event(unsigned short code, unsigned short value)
 {
-    printf("KEY_PRESS: %s\r\n", key_names[code]);
+    int index = -1;
+    switch(code){
+        case KEY_A:
+            index = A_KEY;
+            break;
+        
+        case KEY_S:
+            index = S_KEY;
+            break;
+        
+        case KEY_D:
+            index = D_KEY;
+            break;
+        
+        case KEY_F:
+            index = F_KEY;
+            break;
+        
+        case KEY_H:
+            index = H_KEY;
+            break;
+        
+        case KEY_J:
+            index = J_KEY;
+            break;
+        
+        case KEY_K:
+            index = K_KEY;
+            break;
+        
+        case KEY_L:
+            index = L_KEY;
+            break;
+        
+        case KEY_ESC:
+            index = ESC_KEY;
+            break;
+        
+        case KEY_ENTER:
+            index = ENTER_KEY;
+            break;
+
+        default:
+            printf("Ignoring invalid key input: %u", code);
+            return;
+    }
+
+    if(index >= 0)
+    {
+        if(value > 0)
+        {
+            atomic_fetch_or(&keyState, (1<<index));
+        }
+        else
+        {
+            atomic_fetch_and(&keyState, ~(1<<index));
+        }
+    }
+    else
+    {
+        printf("Ignoring invalid key input: %u", code);
+    }
 }
 
-void key_release(unsigned short code)
+void input_cleanup()
 {
-    printf("KEY_RELEASE: %s\r\n", key_names[code]);
+    if(keyboard_path)
+    {
+        free(keyboard_path);
+        keyboard_path = NULL;
+    }
+
+    if(keyboard_fd >= 0) close(keyboard_fd);
 }
 
-void key_hold(unsigned short code)
+// poll for input events
+void *input_poll(void *arg)
 {
-    printf("KEY_HOLD: %s\r\n", key_names[code]);
+    struct input_event event;
+    ssize_t bytes_read;
+
+    //open keyboard
+    if((keyboard_fd = open(keyboard_path, O_RDONLY)) < 0)
+    {
+        fprintf(stderr, "INPUT_HANDLER: Keyboard device path cannot be opened. Errno: %s\r\n", strerror(errno));
+        goto exit;
+    }
+
+    while(running)
+    {
+        bytes_read = read(keyboard_fd, &event, sizeof(event));
+ 
+        if (bytes_read < 0) {
+            if (errno == EINTR) continue; //signal - handle safely
+            fprintf(stderr, "[INPUT_HANDLER] Read keyboard event. Errno: %s\r\n", strerror(errno));
+            goto exit;
+        }
+ 
+        /* We only care about key events (EV_KEY) */
+        if (event.type != EV_KEY)
+            continue;
+
+        switch (event.value) {
+            case 0: case 1: case 2:  
+                key_event(event.code, event.value);   
+                break;
+            default: 
+                fprintf(stderr, "[INPUT_HANDLER] Keyboard event value=%u, code=%u\r\n", event.value, event.code); 
+                break;
+        }
+    }
+
+    exit:
+    input_cleanup();
+    pthread_exit(NULL);
+}
+
+// PUBLIC API
+
+uint16_t input_get_keys()
+{
+    return atomic_load(&keyState);;
+}
+
+int input_init()
+{
+    //Get keyboard input
+    keyboard_path = get_keyboard();
+    if(!keyboard_path)
+    {
+        fprintf(stderr, "INPUT_HANDLER: Could not find keyboard device. Errno: %s\r\n", strerror(errno));
+        return EXIT_FAILURE;
+    }
+    printf("Found Keyboard: %s\r\n", keyboard_path);
+
+    //Open keyboard
+    if((keyboard_fd = open(keyboard_path, O_RDONLY)) < 0)
+    {
+        fprintf(stderr, "INPUT_HANDLER: Keyboard device path cannot be opened. Errno: %s\r\n", strerror(errno));
+        input_cleanup();
+
+        return EISDIR;
+    }
+
+    //Configure keyboard
+    set_keyhold(keyboard_fd, HOLD_DELAY, HOLD_PERIOD);
+
+    close(keyboard_fd);
+
+    //create thread to poll input
+    int status = pthread_create(&input_thread_id, NULL, input_poll, NULL);
+    if (status != 0)
+    {
+        fprintf(stderr, "[INPUT_HANDLER] Failed to create input thread: %s", strerror(status));
+        input_cleanup();
+
+        return EXIT_FAILURE;
+    }
+
+    status = pthread_detach(input_thread_id);
+    if (status != 0)
+    {
+        fprintf(stderr, "[INPUT_HANDLER] Failed to detach input thread: %s", strerror(status));
+        input_cleanup();
+
+        return EXIT_FAILURE;
+    }
+
+    printf("Input handler thread initialized and detached successfully.\r\n");
+
+    return 0;
+}
+
+void input_reset()
+{
+    atomic_store(&keyState, 0);
 }

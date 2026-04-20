@@ -1,29 +1,30 @@
 # Developed from PES assignment 1 makefile and googled how to make the echo statement in help phony
-EXEC	= input_handler
+EXEC	= build/piano_tiles
 CC 		= $(CROSS_COMPILE)gcc
 
 # Flags
-CFLAGS 	= -Wall -Werror
-LDFLAGS  = 
+CFLAGS 	= -Wall -Werror -Isrc -Iinc -pthread
+LDFLAGS = -pthread
 
-SRC      = $(wildcard *.c)
-OBJ      = $(SRC:.c=.o)
+# Auto-discover all .c and .h files
+SRCS = $(wildcard src/*.c)
+OBJ = $(SRCS:src/%.c=build/%.o)
 
 # Target
 all: $(EXEC)
 
-# Build
-${EXEC}: $(OBJ)
+# Link
+$(EXEC): $(OBJ)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 # Compile
-%.o: %.c %.h
+build/%.o: src/%.c
 	$(CC) -o $@ -c $< $(CFLAGS)
 
 # Clean
 .PHONY: clean
 clean:
-	@rm -rf $(EXEC) *.o
+	@rm -rf build/*
 
 # Help
 .PHONY: help
@@ -32,8 +33,8 @@ help:
 Usage: make [target] [CROSS_COMPILE=<prefix>]\n\
 \n\
 Available targets: \n\
-    all (default) - Build the input_handler application\n\
-    clean         - Remove input_handler and all .o files\n\
+    all (default) - Build the piano_tiles application\n\
+    clean         - Remove the build directory\n\
     help          - Display this help message\n\
 \n\
 Cross-compilation:\n\
