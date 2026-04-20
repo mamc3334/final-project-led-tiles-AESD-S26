@@ -1,14 +1,6 @@
-#include "config_loader.h"
+#include "../inc/config_reader.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include <errno.h>
-
-/* -----------------------------------------------------------------------
- * Internal helpers
- * --------------------------------------------------------------------- */
+GameConfig gc = {0};
 
 /* Strip leading and trailing whitespace in-place. Returns pointer to s. */
 /**
@@ -50,7 +42,7 @@ static int parse_color(const char *s, Color *out)
  * 
  * @return 0 on success
  */
-int config_loader_load(const char *path, GameSettings *out)
+int config_loader_load(const char *path, GameConfig *out)
 {
     FILE *f = fopen(path, "r");
 
@@ -154,7 +146,7 @@ int config_loader_load(const char *path, GameSettings *out)
  * 
  * @param s current game settings
  */
-void config_loader_print(const GameSettings *s)
+void config_loader_print(const GameConfig *s)
 {
     printf("=== GameSettings ===\n");
     printf("[display]\n");
