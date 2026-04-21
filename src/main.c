@@ -295,7 +295,7 @@ int main(int argc, char **argv)
     }
     
     //load frame generator
-    init_frame();
+    init_frame("../beatmaps/LetitBe.csv");
 
     //Get input device
     if((retval = input_init()) != 0)
