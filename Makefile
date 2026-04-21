@@ -6,13 +6,7 @@ CC      = $(CROSS_COMPILE)gcc
 
 # Submodule
 SUBMOD_DIR = ecen5713_rpi_ws281x
-SUBMOD_SRCS = $(SUBMOD_DIR)/ws2812b_wrapper.c \
-              $(SUBMOD_DIR)/ws2811.c \
-              $(SUBMOD_DIR)/dma.c \
-              $(SUBMOD_DIR)/pwm.c \
-              $(SUBMOD_DIR)/pcm.c \
-              $(SUBMOD_DIR)/mailbox.c \
-              $(SUBMOD_DIR)/rpihw.c
+SUBMOD_SRCS = $(filter-out $(SUBMOD_DIR)/main.c, $(wildcard $(SUBMOD_DIR)/*.c))
 SUBMOD_OBJ  = $(SUBMOD_SRCS:$(SUBMOD_DIR)/%.c=build/submod_%.o)
 SUBMOD_DEPS = $(SUBMOD_OBJ:.o=.d)
 

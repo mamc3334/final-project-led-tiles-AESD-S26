@@ -29,14 +29,14 @@
 
 GameState gs = {false, false};
 
-static int32_t p1_score = 0;
-static int32_t p2_score = 0;
+//static int32_t p1_score = 0;
+//static int32_t p2_score = 0;
 
 static GameConfig gc = {0};
 
 static void signal_handler(int sig);
 static void parseargs(int argc, char **argv);
-static uint8_t check_for_hits(uint8_t keys);
+//static uint8_t check_for_hits(uint8_t keys);
 
 static void signal_handler(int sig)
 {
@@ -235,9 +235,13 @@ void parseargs(int argc, char **argv)
  * 
  * @return Bitfield representing hits for each player (lower 4 bits for player 1, upper 4 bits for player 2)
  */
+ /*
 static uint8_t check_for_hits(uint8_t keys)
 {
-    uint32_t idx = get_frame_index(); //based on next frame
+
+    // uint32_t idx = get_frame_index();
+    // this should not be from frame_generator.c
+    // current frame should be kept by game logic after parsing files. 
 
     if(idx < 15) return 0; //not enough frames have passed to reach hit zone
     uint8_t active_lanes = get_frame(idx - (gc.matrix_rows - gc.hit_zone_row));
@@ -260,6 +264,7 @@ static uint8_t check_for_hits(uint8_t keys)
 
     return hits;
 }
+*/
 
 int main(int argc, char **argv)
 {
@@ -282,16 +287,15 @@ int main(int argc, char **argv)
 
     config_loader_print(&gc);
 
-    uint32_t frame_delay = (1000 * 1000 / gc.fps); //us
+    //uint32_t frame_delay = (1000 * 1000 / gc.fps); //us
+
+    if (init_led_grid() != WS2811_SUCCESS) {
+        fprintf(stderr, "ERROR: Initializing WS2812b LED Grid failed.\n");
+        return EXIT_FAILURE;
+    }
     
     //load frame generator
-    if((retval = init_frame(&gc)) != 0)
-    {
-        fprintf(stderr, "ERROR: Initializing frame generator failed.\n");
-        return retval;
-    }
-
-    configure_led_grid(gc.gpio_pin, gc.matrix_cols, gc.matrix_rows, gc.num_players, gc.brightness);
+    init_frame("../beatmaps/LetitBe.csv");
 
     //Get input device
     if((retval = input_init()) != 0)
@@ -302,113 +306,17 @@ int main(int argc, char **argv)
     
     gs.running = 1;
 
-    uint16_t key_state = 0;
+    //uint16_t key_state = 0;
 
     while(gs.running)
     {
-        gs.gameover = 0;
-        p1_score = 100;
-        p2_score = 100;
-
-        //reset frame to beginning of beat map and clear matrix
-        start_frame();
-
-        //reset input state
-        input_reset();
-
-        //get start key
-        while(1)
-        {
-            key_state = input_get_keys();
-            if(key_state & (1 << ENTER_KEY))
-            {
-                printf("Starting game...\n");
-                break;
-            }
-            if(key_state & (1 << ESC_KEY))
-            {
-                printf("Exiting game...\n");
-                gs.running = 0;
-                break;
-            }
-        }
-
-        while(!gs.gameover && gs.running)
-        {
-            key_state = input_get_keys();
-            if(key_state & (1 << ESC_KEY))
-            {
-                printf("Exiting game...\n");
-                gs.running = 0;
-                break;
-            }
-            while(key_state & (1 << ENTER_KEY))
-            {
-                printf("Pausing game...\n");
-                usleep(10000); //sleep 10ms
-                key_state = input_get_keys();
-
-                //TODO: handle frame index during pause
-            }
-
-            //check for hits and update score
-            uint8_t hits = check_for_hits((uint8_t)(key_state & 0xFF));
-
-//if player 1 score is 0 or less, game over
-//dont end in two player mode until game over
-            if((gc.num_players == 1) && (p1_score <= 0))
-            {
-                p1_score = 0;
-                gs.gameover = 1;
-            }
-
-            //update led matrix with hits
-            //only update top row and hit zone row
-            int retval = render_frame(hits, gc.hit_zone_row);
-            if(retval < 0)
-            {
-                gs.running = 0;
-                break;
-            }
-            else if(retval == 1)
-            {
-                gs.gameover = 1;
-            }
-
-            usleep(frame_delay);
-        }
-
-        //game completed successfully
-        if(gs.gameover && gs.running)
-        {
-            //Display score
-            printf("\nGame Over!\n");
-            printf("Player 1 Score: %d\n", p1_score);
-            if(gc.num_players == 2)
-            {
-                printf("Player 2 Score: %d\n", p2_score);
-
-                if(p1_score > p2_score)
-                {
-                    printf("Player 1 Wins!\n");
-                    //matrix display winner
-                }
-                else if(p2_score > p1_score)
-                {
-                    printf("Player 2 Wins!\n");
-                    //matrix display winner
-                }
-                else
-                {
-                    printf("It's a tie!\n");
-                }
-            }
-
-            usleep(2000 * 1000); //sleep 2s
-        }
+        render_frame(1,0);	
+	    usleep(100 * 1000);   // if each CSV row is 10 ms
     }
 
-    cleanup_frame();
+    clear_led_grid(); // turn off all led strip lights
+    usleep(100 * 1000);  // 100ms per tick = ~10 rows/sec
+    free_led_grid(); // free memory and buses
 
     printf("RETURNING %d", retval);
 
