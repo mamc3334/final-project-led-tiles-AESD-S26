@@ -9,6 +9,8 @@
  *  @brief Piano Tiles Game on Raspberry Pi 4 using WS2812b LED Matrix
  */
 
+#define _GNU_SOURCE
+#include <string.h>
 #include "input_handler.h"
 #include "frame_generator.h"
 #include "config_reader.h"
@@ -27,13 +29,10 @@
 
 GameState gs = {false, false};
 
-static uint32_t p1_score = 0;
-static uint32_t p2_score = 0;
-
-static char* beatmap = SONG;
+static int32_t p1_score = 0;
+static int32_t p2_score = 0;
 
 static GameConfig gc = {0};
-static char config_file[CONFIG_MAX_PATH] = "config.cfg";
 
 static void signal_handler(int sig);
 static void parseargs(int argc, char **argv);
@@ -81,7 +80,7 @@ static int download_beatmap(void)
 
     if (connect(sock_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
     {
-        perror("connect");
+        perror("Server Connection Failed");
         close(sock_fd);
         return -1;
     }
@@ -90,7 +89,7 @@ static int download_beatmap(void)
     const char *req = "GET\n";
     if (send(sock_fd, req, strlen(req), 0) < 0)
     {
-        perror("send");
+        perror("GET request failed");
         close(sock_fd);
         return -1;
     }
@@ -99,7 +98,7 @@ static int download_beatmap(void)
     int out_fd = open(OUTPUT_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (out_fd < 0)
     {
-        perror("open output file");
+        perror("Could not open output file");
         close(sock_fd);
         return -1;
     }
@@ -134,7 +133,15 @@ static int download_beatmap(void)
     fprintf(stdout, "Download complete: %zu bytes saved to " OUTPUT_FILE "\n", total);
 
     // Point beatmap at the downloaded file
-    beatmap = OUTPUT_FILE;
+    if(total > 0)
+    {
+        strncpy(gc.song, OUTPUT_FILE, sizeof(gc.song) - 1);
+        gc.song[sizeof(gc.song) - 1] = '\0';
+    }
+    else
+    {
+        fprintf(stderr, "Download error: file is empty. Using default bitmap.\n");
+    }
 
     return 0;
 }
@@ -177,7 +184,7 @@ void parseargs(int argc, char **argv)
 				"-h (--help)    - this information\n"
 				"-p (--players) - 1 or 2 player mode (default 1)\n"
                 "-s (--song)    - specify beatmap file (default 'beatmaps/LetitBe.csv'\n"
-                "-c (--config)  - specify configuration file"
+                "-c (--config)  - specify configuration file\n"
                 "-d (--download) - download beatmap from server\n"
 				"-v (--version) - version information\n"
 				, argv[0]);
@@ -197,10 +204,13 @@ void parseargs(int argc, char **argv)
             break;
 
         case 'c':
-            len = strlen(optarg); 
-            len = (len > (CONFIG_MAX_PATH - 1)) ? (CONFIG_MAX_PATH - 1) : len;
-            strncpy(config_file, optarg, len);
-            config_file[len] = '\0';
+            if(config_loader_load(optarg, &gc)<0)
+            {
+                fprintf(stderr, "[config] error loading config file. Setting default config");
+                config_load_default(&gc);
+            }
+
+            break;
 
         case 'd':
             fprintf(stderr, "Downloading Beatmap from server.\n");
@@ -227,23 +237,24 @@ void parseargs(int argc, char **argv)
  */
 static uint8_t check_for_hits(uint8_t keys)
 {
-    uint32_t idx = get_frame_index();
+    uint32_t idx = get_frame_index(); //based on next frame
 
     if(idx < 15) return 0; //not enough frames have passed to reach hit zone
-    uint8_t active_lanes = get_frame(idx-15);
+    uint8_t active_lanes = get_frame(idx - (gc.matrix_rows - gc.hit_zone_row));
 
     uint8_t hits = active_lanes & keys; //bitwise AND to get hits for player 1.
-
+    
     //SCORING
-    p1_score += 10 * __builtin_popcount(hits);
-    p1_score -= 10 * __builtin_popcount(active_lanes & ~keys);
+    uint32_t score_scale = gc.score_scale;
+    p1_score += score_scale * __builtin_popcount(hits);
+    p1_score -= score_scale * __builtin_popcount(active_lanes & ~keys);
 
     uint8_t p2_keys  = keys >> 4;
     uint8_t p2_hits  = active_lanes & p2_keys;
     uint8_t p2_misses = active_lanes & ~p2_keys;
 
-    p2_score += 10 * __builtin_popcount(p2_hits);
-    p2_score -= 10 * __builtin_popcount(p2_misses);
+    p2_score += score_scale * __builtin_popcount(p2_hits);
+    p2_score -= score_scale * __builtin_popcount(p2_misses);
 
     hits |= (p2_hits << 4);
 
@@ -264,18 +275,23 @@ int main(int argc, char **argv)
     sigaction(SIGINT,  &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
 
+    config_load_default(&gc);
+
     //parse args
     parseargs(argc, argv);
 
-    config_loader_load(config_file, &gc);
     config_loader_print(&gc);
+
+    uint32_t frame_delay = (1000 * 1000 / gc.fps); //us
     
     //load frame generator
-    if((retval = init_frame()) != 0)
+    if((retval = init_frame(&gc)) != 0)
     {
         fprintf(stderr, "ERROR: Initializing frame generator failed.\n");
         return retval;
     }
+
+    configure_led_grid(gc.gpio_pin, gc.matrix_cols, gc.matrix_rows, gc.num_players, gc.brightness);
 
     //Get input device
     if((retval = input_init()) != 0)
@@ -317,7 +333,7 @@ int main(int argc, char **argv)
             }
         }
 
-        while(!gs.gameover)
+        while(!gs.gameover && gs.running)
         {
             key_state = input_get_keys();
             if(key_state & (1 << ESC_KEY))
@@ -329,6 +345,7 @@ int main(int argc, char **argv)
             while(key_state & (1 << ENTER_KEY))
             {
                 printf("Pausing game...\n");
+                usleep(10000); //sleep 10ms
                 key_state = input_get_keys();
 
                 //TODO: handle frame index during pause
@@ -341,14 +358,24 @@ int main(int argc, char **argv)
 //dont end in two player mode until game over
             if((gc.num_players == 1) && (p1_score <= 0))
             {
+                p1_score = 0;
                 gs.gameover = 1;
             }
 
             //update led matrix with hits
             //only update top row and hit zone row
-            new_frame(hits);
+            int retval = render_frame(hits, gc.hit_zone_row);
+            if(retval < 0)
+            {
+                gs.running = 0;
+                break;
+            }
+            else if(retval == 1)
+            {
+                gs.gameover = 1;
+            }
 
-            usleep(FRAME_DELAY * 1000);
+            usleep(frame_delay);
         }
 
         //game completed successfully
@@ -376,8 +403,12 @@ int main(int argc, char **argv)
                     printf("It's a tie!\n");
                 }
             }
+
+            usleep(2000 * 1000); //sleep 2s
         }
     }
+
+    cleanup_frame();
 
     printf("RETURNING %d", retval);
 
