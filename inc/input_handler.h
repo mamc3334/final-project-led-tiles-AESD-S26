@@ -23,6 +23,7 @@
 #include <sys/ioctl.h>
 #include <pthread.h>
 #include <stdatomic.h>
+#include <poll.h>
 #include "config_reader.h"
 
 #define INPUT_DIR ("/dev/input") // length = 10

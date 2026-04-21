@@ -1,3 +1,14 @@
+/*
+ * config_reader.c
+ *
+ *  Created on: Apr 18, 2026
+ *      Author: Mason McGafifn
+ *
+ *  @brief Config Handler for Piano Tiles game
+ */
+
+// Claude link: https://claude.ai/share/ef401e88-62d5-4623-9af1-6cfce6f5bac3
+
 #include "../inc/config_reader.h"
 
 GameConfig gc = {0};
@@ -35,6 +46,36 @@ static int parse_color(const char *s, Color *out)
 }
 
 /**
+ * @brief Load default configs into game config
+ * 
+ * @param gc game config to be loaded into
+ */
+void config_load_default(GameConfig *gc)
+{
+    // [display]
+    gc->gpio_pin     = GPIO;
+    gc->matrix_rows  = MATRIX_HEIGHT;
+    gc->matrix_cols  = MATRIX_WIDTH;
+    gc->brightness   = BRIGHTNESS;
+    gc->fps          = 30;
+    gc->hit_zone_row = HIT_ZONE_ROW;
+    
+    // [colors]
+    gc->background = (Color){0,   0,   0  };
+    gc->hit_zone   = (Color){25,  25,  25 };
+    gc->lane_colors[0] = (LaneColor){{255,0,0},     {255,255,255}};
+    gc->lane_colors[1] = (LaneColor){{255,100,0},   {255,255,255}};
+    gc->lane_colors[2] = (LaneColor){{0,80,255},    {255,255,255}};
+    gc->lane_colors[3] = (LaneColor){{160,0,255},   {255,255,255}};
+ 
+    /* [game] */
+    gc->score_scale = 10;
+    gc->num_players = 1;
+    strncpy(gc->song, SONG, sizeof(gc->song) - 1);
+    gc->song[sizeof(gc->song) - 1] = '\0';
+}
+
+/**
  * @brief parse config file and update default configuration
  * 
  * @param path config file path
@@ -62,6 +103,7 @@ int config_loader_load(const char *path, GameConfig *out)
         lineno++;
         char *p = trim(line);
         if (*p == '\0') continue; //ignore blank/empty lines
+        if (*p == '#' || *p == ';') continue; //ignore comments
 
         //Parse sections
         if (*p == '[') 
@@ -112,7 +154,6 @@ int config_loader_load(const char *path, GameConfig *out)
             }
             if (strcmp(key, "background") == 0) out->background   = c;
             else if (strcmp(key, "hit_zone") == 0) out->hit_zone     = c;
-            else if (strcmp(key, "miss_flash") == 0) out->miss_flash   = c;
             else if (strcmp(key, "lane0_active") == 0) out->lane_colors[0].active    = c;
             else if (strcmp(key, "lane1_active") == 0) out->lane_colors[1].active    = c;
             else if (strcmp(key, "lane2_active") == 0) out->lane_colors[2].active    = c;
@@ -146,31 +187,30 @@ int config_loader_load(const char *path, GameConfig *out)
  * 
  * @param s current game settings
  */
-void config_loader_print(const GameConfig *s)
+void config_loader_print(const GameConfig *gc)
 {
     printf("=== GameSettings ===\n");
     printf("[display]\n");
-    printf("  gpio_pin    = %d\n",   s->gpio_pin);
-    printf("  matrix_rows = %d\n",   s->matrix_rows);
-    printf("  matrix_cols = %d\n",   s->matrix_cols);
-    printf("  brightness  = %u\n",   s->brightness);
-    printf("  fps         = %d\n",   s->fps);
-    printf("  hit_zone_row= %d\n",   s->hit_zone_row);
+    printf("  gpio_pin    = %d\n",   gc->gpio_pin);
+    printf("  matrix_rows = %d\n",   gc->matrix_rows);
+    printf("  matrix_cols = %d\n",   gc->matrix_cols);
+    printf("  brightness  = %u\n",   gc->brightness);
+    printf("  fps         = %d\n",   gc->fps);
+    printf("  hit_zone_row= %d\n",   gc->hit_zone_row);
     printf("[colors]\n");
-    printf("  background  = %u,%u,%u\n", s->background.r, s->background.g, s->background.b);
-    printf("  hit_zone    = %u,%u,%u\n", s->hit_zone.r,   s->hit_zone.g,   s->hit_zone.b);
-    printf("  miss_flash  = %u,%u,%u\n", s->miss_flash.r, s->miss_flash.g, s->miss_flash.b);
+    printf("  background  = %u,%u,%u\n", gc->background.r, gc->background.g, gc->background.b);
+    printf("  hit_zone    = %u,%u,%u\n", gc->hit_zone.r,   gc->hit_zone.g,   gc->hit_zone.b);
     for (int i = 0; i < 4; i++) {
         printf("  lane%d active = %u,%u,%u  hit = %u,%u,%u\n", i,
-               s->lane_colors[i].active.r,
-               s->lane_colors[i].active.g,
-               s->lane_colors[i].active.b,
-               s->lane_colors[i].hit_flash.r,
-               s->lane_colors[i].hit_flash.g,
-               s->lane_colors[i].hit_flash.b);
+               gc->lane_colors[i].active.r,
+               gc->lane_colors[i].active.g,
+               gc->lane_colors[i].active.b,
+               gc->lane_colors[i].hit_flash.r,
+               gc->lane_colors[i].hit_flash.g,
+               gc->lane_colors[i].hit_flash.b);
     }
     printf("[game]\n");
-    printf("  score_scale = %d\n",   s->score_scale);
-    printf("  num_players = %d\n",   s->num_players);
-    printf("  song        = %s\n", s->song);
+    printf("  score_scale = %d\n", gc->score_scale);
+    printf("  num_players = %d\n", gc->num_players);
+    printf("  song        = %s\n", gc->song);
 }

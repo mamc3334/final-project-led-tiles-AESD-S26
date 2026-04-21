@@ -10,7 +10,7 @@
 
 #include "input_handler.h"
 
-static int keyboard_fd = 0;
+static int keyboard_fd = -1;
 static char *keyboard_path = NULL;
 static pthread_t input_thread_id;
 
@@ -155,6 +155,7 @@ void *input_poll(void *arg)
 {
     struct input_event event;
     ssize_t bytes_read;
+    int ready;
 
     //open keyboard
     if((keyboard_fd = open(keyboard_path, O_RDONLY)) < 0)
@@ -163,8 +164,30 @@ void *input_poll(void *arg)
         goto exit;
     }
 
+    struct pollfd pfd = {
+        .fd     = keyboard_fd,
+        .events = POLLIN,
+    };
+
     while(gs.running)
     {
+        ready = poll(&pfd, 1, 50); //blocking poll for 50ms
+ 
+        if (ready < 0)
+        {
+            if (errno == EINTR) continue; //signal
+            fprintf(stderr, "INPUT_HANDLER: poll failed. Errno: %s\r\n", strerror(errno));
+            goto exit;
+        }
+ 
+        if (ready == 0) continue; //timeout
+ 
+        if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL))
+        {
+            fprintf(stderr, "[INPUT_HANDLER] Keyboard device error. Errno: %s\r\n", strerror(errno));
+            goto exit;
+        }
+
         bytes_read = read(keyboard_fd, &event, sizeof(event));
  
         if (bytes_read < 0) {
@@ -172,7 +195,7 @@ void *input_poll(void *arg)
             fprintf(stderr, "[INPUT_HANDLER] Read keyboard event. Errno: %s\r\n", strerror(errno));
             goto exit;
         }
- 
+
         /* We only care about key events (EV_KEY) */
         if (event.type != EV_KEY)
             continue;

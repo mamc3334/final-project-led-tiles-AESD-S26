@@ -12,9 +12,12 @@
 #define CONFIG_MAX_PATH 256
 
 //DEFAULT CONFIG
-#define MATRIX_WIDTH   16
-#define MATRIX_HEIGHT  16
-#define HIT_ZONE_ROW   14
+#define GPIO        18
+#define MATRIX_WIDTH    16
+#define MATRIX_HEIGHT   16
+#define BRIGHTNESS      100
+#define FPS             30
+#define HIT_ZONE_ROW    1
 #define NUM_PLAYERS 1
 #define SONG "../beatmaps/LetitBe.csv"
 
@@ -52,12 +55,11 @@ typedef struct {
     uint8_t matrix_cols;
     uint8_t brightness;
     int fps;
-    int hit_zone_row;
+    uint8_t hit_zone_row;
 
     // [colors]
     Color background;
     Color hit_zone;
-    Color miss_flash;
     LaneColor lane_colors[4];
 
     // [game] 
@@ -75,6 +77,13 @@ typedef struct {
  * @return 0 on success
  */
 int config_loader_load(const char *path, GameConfig *out);
+
+/**
+ * @brief Load default configs into game config
+ * 
+ * @param gc game config to be loaded into
+ */
+void config_load_default(GameConfig *gc);
 
 /**
  * @brief print game configs to the screen
