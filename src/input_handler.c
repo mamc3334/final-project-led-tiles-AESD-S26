@@ -16,61 +16,66 @@ static pthread_t input_thread_id;
 
 static atomic_uint_least16_t keyState = 0;
 
+
+#ifndef BITS_PER_LONG
+#define BITS_PER_LONG (sizeof(unsigned long) * 8)
+#endif
+
+#define NBITS(x) ((((x) - 1) / BITS_PER_LONG) + 1)
+#define TEST_BIT(bit, array) (((array)[(bit) / BITS_PER_LONG] >> ((bit) % BITS_PER_LONG)) & 1)
+
 /**
  * @brief Returns path of keyboard device
  */
 char *get_keyboard()
 {
     DIR *dir = opendir(INPUT_DIR);
-    if(!dir)
-    {
-        fprintf(stderr, "INPUT_HANDLER: opendir /dev/input failed. Errno: %s\r\n", strerror(errno));
+    if (!dir) {
+        fprintf(stderr, "INPUT_HANDLER: opendir failed: %s\n", strerror(errno));
         return NULL;
     }
 
     struct dirent *ent;
     char path[PATH_SIZE];
-    char* keyboard_path = NULL;
-    int fd;
-    unsigned long evbits;
 
-    while ((ent = readdir(dir)) != NULL)
-    {
-        //if not event skip
-        if (strncmp(ent->d_name, "event", 5) != 0) continue;
+    while ((ent = readdir(dir)) != NULL) {
+        if (strncmp(ent->d_name, "event", 5) != 0)
+            continue;
 
-        // format path
         snprintf(path, sizeof(path), "%s/%s", INPUT_DIR, ent->d_name);
-        if ((fd = open(path, O_RDONLY | O_NONBLOCK)) < 0) continue;
 
-        // Check if device has supports keyboard events
-        if((ioctl(fd, EVIOCGBIT(0, sizeof(evbits)), &evbits) >= 0) && (evbits & (1 << EV_KEY)))
-        {
-            keyboard_path = strdup(path);
-            close(fd);
-            break;
+        int fd = open(path, O_RDONLY | O_NONBLOCK);
+        if (fd < 0)
+            continue;
+
+        char name[256] = {0};
+        ioctl(fd, EVIOCGNAME(sizeof(name)), name);
+
+        unsigned long keybits[NBITS(KEY_MAX + 1)];
+        memset(keybits, 0, sizeof(keybits));
+
+        if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keybits)), keybits) >= 0) {
+            bool has_enter = TEST_BIT(KEY_ENTER, keybits) || TEST_BIT(KEY_KPENTER, keybits);
+            bool has_esc   = TEST_BIT(KEY_ESC, keybits);
+            bool has_a     = TEST_BIT(KEY_A, keybits);
+            bool has_s     = TEST_BIT(KEY_S, keybits);
+            bool has_d     = TEST_BIT(KEY_D, keybits);
+            bool has_f     = TEST_BIT(KEY_F, keybits);
+
+            printf("Checking %s (%s)\n", path, name[0] ? name : "unknown");
+
+            if (has_enter && has_esc && has_a && has_s && has_d && has_f) {
+                close(fd);
+                closedir(dir);
+                return strdup(path);
+            }
         }
 
         close(fd);
     }
 
     closedir(dir);
-
-    //FOR NOW 
-
-    return keyboard_path;
-}
-
-void set_keyhold(int fd, unsigned int delay, unsigned int period)
-{
-    unsigned int repeat[2] = {delay, period};
-
-    if (ioctl(fd, EVIOCSREP, repeat) < 0)
-    {
-        fprintf(stderr, "[WARNING] INPUT_HANDLER: set_keyhold failed. Errno: %s\r\n", strerror(errno));        
-    }
-
-    return;
+    return NULL;
 }
 
 void key_event(unsigned short code, unsigned short value)
@@ -115,12 +120,15 @@ void key_event(unsigned short code, unsigned short value)
         
         case KEY_ENTER:
             index = ENTER_KEY;
+            
             break;
 
         default:
             printf("Ignoring invalid key input: %u", code);
             return;
     }
+
+    printf("Key index: %d   Code: %d     Value: %d\n", index, code, value);
 
     if(index >= 0)
     {
@@ -153,6 +161,8 @@ void input_cleanup()
 // poll for input events
 void *input_poll(void *arg)
 {
+    (void)arg;
+
     struct input_event event;
     ssize_t bytes_read;
     int ready;
@@ -219,7 +229,7 @@ void *input_poll(void *arg)
 
 uint16_t input_get_keys()
 {
-    return atomic_load(&keyState);;
+    return atomic_load(&keyState);
 }
 
 int input_init()
@@ -241,9 +251,6 @@ int input_init()
 
         return EISDIR;
     }
-
-    //Configure keyboard
-    set_keyhold(keyboard_fd, HOLD_DELAY, HOLD_PERIOD);
 
     close(keyboard_fd);
 
