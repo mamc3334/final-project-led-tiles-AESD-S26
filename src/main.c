@@ -381,8 +381,8 @@ int main(int argc, char **argv)
     while(gs.running)
     {
         gs.gameover = 0;
-        p1_score = 100;
-        p2_score = 100;
+        p1_score = 2000;
+        p2_score = 2000;
 
         // Reset frame to beginning of beat map and clear matrix
         start_frame();
