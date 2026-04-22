@@ -1,4 +1,5 @@
-// Claude AI: https://claude.ai/chat/64445247-0e1c-4780-9e08-5e75fa7987a8
+// Claude AI for server: https://claude.ai/chat/64445247-0e1c-4780-9e08-5e75fa7987a8
+// Claude AI for mp3 integration: https://claude.ai/chat/e05980ff-3152-4e54-8500-b6134312b416
 // Used by Hyounjun Chang for modifications
 /*
  * main.c
@@ -14,6 +15,7 @@
 #include "input_handler.h"
 #include "frame_generator.h"
 #include "config_reader.h"
+#include "mp3_player.h"
 #include <stdarg.h>
 #include <getopt.h>
 #include <sys/socket.h>
@@ -33,6 +35,15 @@ static int32_t p1_score = 0;
 static int32_t p2_score = 0;
 
 static GameConfig gc = {0};
+
+/* MP3 player instance — created before game loop, destroyed on exit */
+static mp3_player_t *player = NULL;
+
+/* MP3 file path (set via -m flag or derived from beatmap name) */
+static char mp3_path[CONFIG_MAX_PATH] = {0};
+
+/* ALSA device (set via -a flag, e.g. "hw:2,0") */
+static char audio_device[256] = {0};
 
 static void signal_handler(int sig);
 static void parseargs(int argc, char **argv);
@@ -163,77 +174,87 @@ void parseargs(int argc, char **argv)
     int do_download = 0;
     int do_song = 0;
 
-	static struct option longopts[] =
-	{
-		{"help", no_argument, 0, 'h'},
-		{"players", required_argument, 0, 'p'},
-        {"song", required_argument, 0, 's'},
-        {"config", required_argument, 0, 'c'},
+    static struct option longopts[] =
+    {
+        {"help",     no_argument,       0, 'h'},
+        {"players",  required_argument, 0, 'p'},
+        {"song",     required_argument, 0, 's'},
+        {"config",   required_argument, 0, 'c'},
         {"download", no_argument,       0, 'd'},
-		{"version", no_argument, 0, 'v'},
-		{0, 0, 0, 0}
-	};
+        {"mp3",      required_argument, 0, 'm'},
+        {"audio",    required_argument, 0, 'a'},
+        {"version",  no_argument,       0, 'v'},
+        {0, 0, 0, 0}
+    };
 
     while (1)
     {
         index = 0;
-        c = getopt_long(argc, argv, "hp:s:dv", longopts, &index);
+        c = getopt_long(argc, argv, "hp:s:c:dm:a:v", longopts, &index);
 
         if (c == -1)
             break;
 
-
         size_t len;
 
-		switch (c)
-		{
-		case 0:
-			/* handle flag options (array's 3rd field non-0) */
-			break;
+        switch (c)
+        {
+        case 0:
+            /* handle flag options (array's 3rd field non-0) */
+            break;
 
-		case 'h':
-			fprintf(stderr, "Usage: %s \n"
-				"-h (--help)    - this information\n"
-				"-p (--players) - 1 or 2 player mode (default 1)\n"
-                "-s (--song)    - specify beatmap file (default 'beatmaps/LetitBe.csv'\n"
+        case 'h':
+            fprintf(stderr, "Usage: %s \n"
+                "-h (--help)    - this information\n"
+                "-p (--players) - 1 or 2 player mode (default 1)\n"
+                "-s (--song)    - specify beatmap file (default 'beatmaps/LetitBe.csv')\n"
                 "-c (--config)  - specify configuration file\n"
                 "-d (--download) - download beatmap from server\n"
-				"-v (--version) - version information\n"
-				, argv[0]);
-			exit(-1);
+                "-m (--mp3)     - specify MP3 file to play during game\n"
+                "-a (--audio)   - specify ALSA audio device (e.g. hw:2,0 for 3.5mm jack)\n"
+                "                 run `aplay -l` to list available devices\n"
+                "-v (--version) - version information\n"
+                , argv[0]);
+            exit(-1);
 
-		case 'p':
+        case 'p':
             gc.num_players = atoi(optarg);
-
-			break;
+            break;
 
         case 's':
             do_song = 1;
-            len = strlen(optarg); 
+            len = strlen(optarg);
             len = (len > (CONFIG_MAX_PATH - 1)) ? (CONFIG_MAX_PATH - 1) : len;
             strncpy(gc.song, optarg, len);
             gc.song[len] = '\0';
-
             break;
 
         case 'c':
-            if(config_loader_load(optarg, &gc)<0)
+            if(config_loader_load(optarg, &gc) < 0)
             {
                 fprintf(stderr, "[config] error loading config file. Setting default config");
                 config_load_default(&gc);
             }
-
             break;
 
         case 'd':
             do_download = 1;
+            break;
 
+        case 'm':
+            len = strlen(optarg);
+            len = (len > (CONFIG_MAX_PATH - 1)) ? (CONFIG_MAX_PATH - 1) : len;
+            strncpy(mp3_path, optarg, len);
+            mp3_path[len] = '\0';
+            break;
+
+        case 'a':
+            strncpy(audio_device, optarg, sizeof(audio_device) - 1);
+            audio_device[sizeof(audio_device) - 1] = '\0';
             break;
 
         case 'v':
-            //TODO: version information
             fprintf(stderr, "Piano Tiles Game on Raspberry Pi 4 using WS2812b LED Matrix\nVersion 1.0\n");
-            //driver version info
             exit(-1);
 
         default:
@@ -256,9 +277,8 @@ void parseargs(int argc, char **argv)
 
 /**
  * @brief Checks for hits based on current keys pressed and active frame
- * @param keys Bitfield representing keys currently pressed by players (lower 4 bits for player 1, upper 4 bits for player 2)
- * 
- * @return Bitfield representing hits for each player (lower 4 bits for player 1, upper 4 bits for player 2)
+ * @param keys Bitfield representing keys currently pressed by players
+ * @return Bitfield representing hits for each player
  */
 static uint8_t check_for_hits(uint8_t keys)
 {
@@ -266,18 +286,20 @@ static uint8_t check_for_hits(uint8_t keys)
 
     if(idx < 15) return 0; //not enough frames have passed to reach hit zone
     uint8_t active_lanes = get_frame(idx - (gc.matrix_rows - gc.hit_zone_row));
-  
-    printf("Frame index %d , Frame Index requested %d , active lanes %d , keys %d\r\n",idx , idx - (gc.matrix_rows - gc.hit_zone_row) , active_lanes,keys); 
-    uint8_t hits = active_lanes & keys; //bitwise AND to get hits for player 1.
-    	
-    printf("Hits %d\r\n",hits);
-    //SCORING
+
+    printf("Frame index %d , Frame Index requested %d , active lanes %d , keys %d\r\n",
+           idx, idx - (gc.matrix_rows - gc.hit_zone_row), active_lanes, keys);
+    uint8_t hits = active_lanes & keys;
+
+    printf("Hits %d\r\n", hits);
+
     uint32_t score_scale = gc.score_scale;
     p1_score += score_scale * __builtin_popcount(hits);
     p1_score -= score_scale * __builtin_popcount(active_lanes & ~keys);
-    printf("score scale %d p1 score %d \r\n",score_scale , p1_score);
-    uint8_t p2_keys  = keys >> 4;
-    uint8_t p2_hits  = active_lanes & p2_keys;
+    printf("score scale %d p1 score %d \r\n", score_scale, p1_score);
+
+    uint8_t p2_keys   = keys >> 4;
+    uint8_t p2_hits   = active_lanes & p2_keys;
     uint8_t p2_misses = active_lanes & ~p2_keys;
 
     p2_score += score_scale * __builtin_popcount(p2_hits);
@@ -292,10 +314,10 @@ static uint8_t check_for_hits(uint8_t keys)
 int main(int argc, char **argv)
 {
     printf("\r\nStarting Piano Tiles Game\r\n\n");
-    
+
     int retval = 0;
 
-    //handle signals
+    // Handle signals
     struct sigaction sa;
     sa.sa_handler = signal_handler;
     sa.sa_flags = 0;
@@ -305,31 +327,52 @@ int main(int argc, char **argv)
 
     config_load_default(&gc);
 
-    //parse args
+    // Parse args (may set mp3_path and audio_device)
     parseargs(argc, argv);
 
     config_loader_print(&gc);
 
-    uint32_t frame_delay = (1000 * 1000 / gc.fps); //us
+    // --- Create MP3 player ---
+    player = mp3_player_create();
+    if (!player)
+    {
+        fprintf(stderr, "WARNING: Failed to create MP3 player. Game will run without music.\n");
+    }
+    else
+    {
+        if (audio_device[0])
+        {
+            mp3_player_set_device(player, audio_device);
+            printf("[mp3] Audio device: %s\n", audio_device);
+        }
+
+        if (mp3_path[0])
+            printf("[mp3] Music file: %s\n", mp3_path);
+        else
+            printf("[mp3] No MP3 file specified (-m). Game will run without music.\n");
+    }
+
+    uint32_t frame_delay = (1000 * 1000 / gc.fps); // us
 
     if (init_led_grid() != WS2811_SUCCESS) {
         fprintf(stderr, "ERROR: Initializing WS2812b LED Grid failed.\n");
+        mp3_player_destroy(player);
         return EXIT_FAILURE;
     }
-    
-    //load frame generator
+
+    // Load frame generator
     init_frame("../beatmaps/LetitBe.csv");
 
     gs.running = 1;
-    
-    //Get input device
+
+    // Get input device
     if((retval = input_init()) != 0)
     {
         fprintf(stderr, "ERROR: Initializing keyboard input failed.\n");
+        mp3_player_destroy(player);
         return retval;
     }
 
-    //TODO configure frame generator and led grid for custom cfg file
     uint16_t key_state = 0;
 
     while(gs.running)
@@ -338,22 +381,32 @@ int main(int argc, char **argv)
         p1_score = 100;
         p2_score = 100;
 
-        //reset frame to beginning of beat map and clear matrix
+        // Reset frame to beginning of beat map and clear matrix
         start_frame();
 
-        //reset input state
+        // Reset input state
         input_reset();
 
         printf("PRESS ENTER TO START...\n");
 
-        //get start key
+        // Wait for start key
         while(gs.running)
         {
             key_state = input_get_keys();
             if(key_state & (1 << ENTER_KEY))
             {
                 printf("Starting game...\n");
-                usleep(100 * 1000); //delay 100ms
+                usleep(100 * 1000); // delay 100ms
+
+                // Start music when game starts
+                if (player && mp3_path[0])
+                {
+                    if (mp3_player_play(player, mp3_path) != 0)
+                        fprintf(stderr, "WARNING: Failed to start music playback.\n");
+                    else
+                        printf("[mp3] Music started.\n");
+                }
+
                 break;
             }
             if(key_state & (1 << ESC_KEY))
@@ -376,29 +429,35 @@ int main(int argc, char **argv)
             while(key_state & (1 << ENTER_KEY))
             {
                 printf("Pausing game...\n");
-                usleep(10000); //sleep 10ms
+
+                // Pause music when game is paused
+                if (player)
+                    mp3_player_pause(player);
+
+                usleep(10000); // sleep 10ms
                 key_state = input_get_keys();
+
+                // Resume music when unpaused
+                if (!(key_state & (1 << ENTER_KEY)) && player)
+                    mp3_player_resume(player);
 
                 //TODO: handle frame index during pause
             }
 
-            //check for hits and update score
+            // Check for hits and update score
             uint8_t hits = check_for_hits((uint8_t)(key_state & 0xFF));
 
-//if player 1 score is 0 or less, game over
-//dont end in two player mode until game over
             if((gc.num_players == 1) && (p1_score <= 0))
             {
                 p1_score = 0;
                 gs.gameover = 1;
             }
 
-            //update led matrix with hits
-            //only update top row and hit zone row
+            // Update led matrix with hits
             bool ret = render_frame(hits, gc.hit_zone_row);
             if(ret)
             {
-            	printf("Render said frame count has passed\r\n");
+                printf("Render said frame count has passed\r\n");
                 gs.gameover = 1;
                 break;
             }
@@ -406,10 +465,13 @@ int main(int argc, char **argv)
             usleep(frame_delay);
         }
 
-        //game completed successfully
+        // Stop music when game ends
+        if (player)
+            mp3_player_stop(player);
+
+        // Game completed successfully
         if(gs.gameover && gs.running)
         {
-            //Display score
             printf("\nGame Over!\n");
             printf("Player 1 Score: %d\n", p1_score);
             if(gc.num_players == 2)
@@ -419,12 +481,10 @@ int main(int argc, char **argv)
                 if(p1_score > p2_score)
                 {
                     printf("Player 1 Wins!\n");
-                    //matrix display winner
                 }
                 else if(p2_score > p1_score)
                 {
                     printf("Player 2 Wins!\n");
-                    //matrix display winner
                 }
                 else
                 {
@@ -432,13 +492,17 @@ int main(int argc, char **argv)
                 }
             }
 
-            usleep(2000 * 1000); //sleep 2s
+            usleep(2000 * 1000); // sleep 2s
         }
     }
 
-    clear_led_grid(); // turn off all led strip lights
-    usleep(100 * 1000);  // 100ms per tick = ~10 rows/sec
-    free_led_grid(); // free memory and buses
+    // --- Destroy MP3 player ---
+    mp3_player_destroy(player);
+    player = NULL;
+
+    clear_led_grid();
+    usleep(100 * 1000);
+    free_led_grid();
 
     printf("RETURNING %d", retval);
 
