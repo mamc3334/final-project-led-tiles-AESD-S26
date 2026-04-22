@@ -1,7 +1,7 @@
 *.o
 *.d
 build/
+server/server
 mp3_player_demo
-server
 piano_tiles
 downloaded_beatmap
