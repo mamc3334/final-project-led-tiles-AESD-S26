@@ -355,7 +355,7 @@ int main(int argc, char **argv)
             printf("[mp3] No MP3 file specified (-m). Game will run without music.\n");
     }
 
-    uint32_t frame_delay = (1000 * 1000 / gc.fps); // us
+    uint32_t frame_delay = (2 * 1000 * 1000 / gc.fps); // us
 
     if (init_led_grid() != WS2811_SUCCESS) {
         fprintf(stderr, "ERROR: Initializing WS2812b LED Grid failed.\n");
