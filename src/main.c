@@ -266,6 +266,7 @@ static uint8_t check_for_hits(uint8_t keys)
 
     if(idx < 15) return 0; //not enough frames have passed to reach hit zone
     uint8_t active_lanes = get_frame(idx - (gc.matrix_rows - gc.hit_zone_row));
+    active_lanes &= 0x0F;
   
     printf("Frame index %d , Frame Index requested %d , active lanes %d , keys %d\r\n",idx , idx - (gc.matrix_rows - gc.hit_zone_row) , active_lanes,keys); 
     uint8_t hits = active_lanes & keys; //bitwise AND to get hits for player 1.
