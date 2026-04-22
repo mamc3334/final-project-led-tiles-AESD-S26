@@ -287,21 +287,23 @@ static uint8_t check_for_hits(uint8_t keys)
 
     if(idx < 15) return 0; //not enough frames have passed to reach hit zone
     uint8_t active_lanes = get_frame(idx - (gc.matrix_rows - gc.hit_zone_row));
+    active_lanes &= 0x0F;
 
     printf("Frame index %d , Frame Index requested %d , active lanes %d , keys %d\r\n",
            idx, idx - (gc.matrix_rows - gc.hit_zone_row), active_lanes, keys);
     uint8_t hits = active_lanes & keys;
+    uint8_t misses = active_lanes ^ keys;
 
     printf("Hits %d\r\n", hits);
 
     uint32_t score_scale = gc.score_scale;
     p1_score += score_scale * __builtin_popcount(hits);
-    p1_score -= score_scale * __builtin_popcount(active_lanes & ~keys);
+    p1_score -= score_scale * __builtin_popcount(misses);
     printf("score scale %d p1 score %d \r\n", score_scale, p1_score);
 
     uint8_t p2_keys   = keys >> 4;
     uint8_t p2_hits   = active_lanes & p2_keys;
-    uint8_t p2_misses = active_lanes & ~p2_keys;
+    uint8_t p2_misses = active_lanes ^ p2_keys;
 
     p2_score += score_scale * __builtin_popcount(p2_hits);
     p2_score -= score_scale * __builtin_popcount(p2_misses);
@@ -353,7 +355,7 @@ int main(int argc, char **argv)
             printf("[mp3] No MP3 file specified (-m). Game will run without music.\n");
     }
 
-    uint32_t frame_delay = (1000 * 1000 / gc.fps); // us
+    uint32_t frame_delay = (2 * 1000 * 1000 / gc.fps); // us
 
     if (init_led_grid() != WS2811_SUCCESS) {
         fprintf(stderr, "ERROR: Initializing WS2812b LED Grid failed.\n");
@@ -379,8 +381,8 @@ int main(int argc, char **argv)
     while(gs.running)
     {
         gs.gameover = 0;
-        p1_score = 100;
-        p2_score = 100;
+        p1_score = 1000;
+        p2_score = 1000;
 
         // Reset frame to beginning of beat map and clear matrix
         start_frame();
