@@ -29,14 +29,71 @@
 
 GameState gs = {false, false};
 
-//static int32_t p1_score = 0;
-//static int32_t p2_score = 0;
+static int32_t p1_score = 0;
+static int32_t p2_score = 0;
 
 static GameConfig gc = {0};
 
 static void signal_handler(int sig);
 static void parseargs(int argc, char **argv);
-//static uint8_t check_for_hits(uint8_t keys);
+static uint8_t check_for_hits(uint8_t keys);
+
+/*********************
+ * ADITYA IMPLEMENT IN FRAME_GENERATOR- THIS IS WHAT I HAD BEFORE THO
+ */
+uint32_t get_frame_index() {
+    // return frame_count;
+    return 0;
+}
+
+uint8_t get_frame(size_t idx) {
+    // uint8_t frame = 0;
+
+    // for (int lane = 0; lane < 4; lane++) {
+    //     if(frames.frames[idx].lane[lane])
+    //     {
+    //         frame |= (1 << lane);
+    //     }
+    // }
+
+    // return frame;
+    return 0;
+}
+void start_frame()
+{
+    // frame_count = 0;
+    // clear_led_grid();
+    return;
+}
+//true = game over
+bool _render_frame(uint8_t active_lanes, uint8_t row)
+{
+    // ...
+    // BELOW IS FOR RENDERING HIT ROW
+    //update hit row
+    // ws2811_led_t flash_row[cfg_ref->matrix_cols];
+    // int width_block = cfg_ref->matrix_cols / cfg_ref->num_players / 4;
+
+    // for (uint8_t lane = 0; lane < 4; lane++) {
+    //     uint8_t lane_bit = (1 << lane);
+ 
+    //     if (hits & lane_bit) {
+    //         for (int x = 0; x < width_block; x++) 
+    //         {
+    //             flash_row[x] = color_to_led(cfg_ref->lane_colors[lane].hit_flash);
+    //         }
+    //     } 
+    //     else {
+    //         for (int x = 0; x < width_block; x++) {
+    //             flash_row[x] = color_to_led(cfg_ref->hit_zone);
+    //         }
+    //     }
+    //     //TODO make lane flash row configurable
+    //     grid_set_bottom_lane(flash_row, lane);
+    // }
+
+    return false;
+}
 
 static void signal_handler(int sig)
 {
@@ -150,6 +207,8 @@ void parseargs(int argc, char **argv)
 {
     int index;
     int c;
+    int do_download = 0;
+    int do_song = 0;
 
 	static struct option longopts[] =
 	{
@@ -196,6 +255,7 @@ void parseargs(int argc, char **argv)
 			break;
 
         case 's':
+            do_song = 1;
             len = strlen(optarg); 
             len = (len > (CONFIG_MAX_PATH - 1)) ? (CONFIG_MAX_PATH - 1) : len;
             strncpy(gc.song, optarg, len);
@@ -213,8 +273,8 @@ void parseargs(int argc, char **argv)
             break;
 
         case 'd':
-            fprintf(stderr, "Downloading Beatmap from server.\n");
-            download_beatmap();
+            do_download = 1;
+
             break;
 
         case 'v':
@@ -227,6 +287,18 @@ void parseargs(int argc, char **argv)
             exit(-1);
         }
     }
+
+    if (do_download && do_song)
+    {
+        fprintf(stderr, "Error: --download (-d) and --song (-s) are mutually exclusive.\n");
+        exit(-1);
+    }
+
+    if (do_download)
+    {
+        fprintf(stderr, "Downloading beatmap from server.\n");
+        download_beatmap();
+    }
 }
 
 /**
@@ -235,11 +307,9 @@ void parseargs(int argc, char **argv)
  * 
  * @return Bitfield representing hits for each player (lower 4 bits for player 1, upper 4 bits for player 2)
  */
- /*
 static uint8_t check_for_hits(uint8_t keys)
 {
-
-    // uint32_t idx = get_frame_index();
+    uint32_t idx = get_frame_index();
     // this should not be from frame_generator.c
     // current frame should be kept by game logic after parsing files. 
 
@@ -264,7 +334,7 @@ static uint8_t check_for_hits(uint8_t keys)
 
     return hits;
 }
-*/
+
 
 int main(int argc, char **argv)
 {
@@ -287,7 +357,7 @@ int main(int argc, char **argv)
 
     config_loader_print(&gc);
 
-    //uint32_t frame_delay = (1000 * 1000 / gc.fps); //us
+    uint32_t frame_delay = (1000 * 1000 / gc.fps); //us
 
     if (init_led_grid() != WS2811_SUCCESS) {
         fprintf(stderr, "ERROR: Initializing WS2812b LED Grid failed.\n");
@@ -303,15 +373,111 @@ int main(int argc, char **argv)
         fprintf(stderr, "ERROR: Initializing keyboard input failed.\n");
         return retval;
     }
+
+    //TODO configure frame generator and led grid for custom cfg file
     
     gs.running = 1;
 
-    //uint16_t key_state = 0;
+    uint16_t key_state = 0;
 
     while(gs.running)
     {
-        render_frame(1,0);	
-	    usleep(100 * 1000);   // if each CSV row is 10 ms
+        gs.gameover = 0;
+        p1_score = 100;
+        p2_score = 100;
+
+        //reset frame to beginning of beat map and clear matrix
+        start_frame();
+
+        //reset input state
+        input_reset();
+
+        //get start key
+        while(1)
+        {
+            key_state = input_get_keys();
+            if(key_state & (1 << ENTER_KEY))
+            {
+                printf("Starting game...\n");
+                break;
+            }
+            if(key_state & (1 << ESC_KEY))
+            {
+                printf("Exiting game...\n");
+                gs.running = 0;
+                break;
+            }
+        }
+
+        while(!gs.gameover && gs.running)
+        {
+            key_state = input_get_keys();
+            if(key_state & (1 << ESC_KEY))
+            {
+                printf("Exiting game...\n");
+                gs.running = 0;
+                break;
+            }
+            while(key_state & (1 << ENTER_KEY))
+            {
+                printf("Pausing game...\n");
+                usleep(10000); //sleep 10ms
+                key_state = input_get_keys();
+
+                //TODO: handle frame index during pause
+            }
+
+            //check for hits and update score
+            uint8_t hits = check_for_hits((uint8_t)(key_state & 0xFF));
+
+//if player 1 score is 0 or less, game over
+//dont end in two player mode until game over
+            if((gc.num_players == 1) && (p1_score <= 0))
+            {
+                p1_score = 0;
+                gs.gameover = 1;
+            }
+
+            //update led matrix with hits
+            //only update top row and hit zone row
+            bool ret = _render_frame(hits, gc.hit_zone_row);
+            if(ret)
+            {
+                gs.gameover = 1;
+                break;
+            }
+
+            usleep(frame_delay);
+        }
+
+        //game completed successfully
+        if(gs.gameover && gs.running)
+        {
+            //Display score
+            printf("\nGame Over!\n");
+            printf("Player 1 Score: %d\n", p1_score);
+            if(gc.num_players == 2)
+            {
+                printf("Player 2 Score: %d\n", p2_score);
+
+                if(p1_score > p2_score)
+                {
+                    printf("Player 1 Wins!\n");
+                    //matrix display winner
+                }
+                else if(p2_score > p1_score)
+                {
+                    printf("Player 2 Wins!\n");
+                    //matrix display winner
+                }
+                else
+                {
+                    printf("It's a tie!\n");
+                }
+            }
+
+            usleep(2000 * 1000); //sleep 2s
+        }
     }
 
     clear_led_grid(); // turn off all led strip lights

@@ -22,26 +22,6 @@
 #define SONG "../beatmaps/LetitBe.csv"
 
 typedef struct {
-    uint8_t r, g, b;
-} Color;
-
-static const Color COLOR_BACKGROUND = {0, 0, 0};
-static const Color COLOR_HIT_ZONE   = {25, 25, 25};
-static const Color COLOR_MISS       = {160, 0, 0};
-
-typedef struct {
-    Color active;
-    Color hit_flash;
-} LaneColor;
-
-static const LaneColor lane_colors[4] = {
-    {{0,160,255}, {255,255,255}},
-    {{0,230,100}, {255,255,255}},
-    {{220,60,200}, {255,255,255}},
-    {{255,150,0}, {255,255,255}}
-};
-
-typedef struct {
     bool running;
     bool gameover;
 } GameState;
@@ -58,9 +38,12 @@ typedef struct {
     uint8_t hit_zone_row;
 
     // [colors]
-    Color background;
-    Color hit_zone;
-    LaneColor lane_colors[4];
+    uint8_t hit_zone_color;
+    uint8_t hit_color;
+    uint8_t lane0_color;
+    uint8_t lane1_color;
+    uint8_t lane2_color;
+    uint8_t lane3_color;
 
     // [game] 
     uint32_t score_scale;
