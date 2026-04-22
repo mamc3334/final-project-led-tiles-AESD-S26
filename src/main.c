@@ -1,6 +1,7 @@
-// Claude AI for server: https://claude.ai/chat/64445247-0e1c-4780-9e08-5e75fa7987a8
-// Claude AI for mp3 integration: https://claude.ai/chat/e05980ff-3152-4e54-8500-b6134312b416
-// Used by Hyounjun Chang for modifications
+/* Claude AI for server: https://claude.ai/chat/64445247-0e1c-4780-9e08-5e75fa7987a8
+ Claude AI for mp3 integration: https://claude.ai/chat/e05980ff-3152-4e54-8500-b6134312b416
+ Used by Hyounjun Chang for modifications
+*/
 /*
  * main.c
  *
@@ -398,13 +399,21 @@ int main(int argc, char **argv)
                 printf("Starting game...\n");
                 usleep(100 * 1000); // delay 100ms
 
-                // Start music when game starts
+                // Start or resume music when game starts
                 if (player && mp3_path[0])
                 {
-                    if (mp3_player_play(player, mp3_path) != 0)
-                        fprintf(stderr, "WARNING: Failed to start music playback.\n");
-                    else
-                        printf("[mp3] Music started.\n");
+                    if (mp3_player_is_paused(player))
+                    {
+                        mp3_player_resume(player);
+                        printf("[mp3] Music resumed.\n");
+                    }
+                    else if (!mp3_player_is_playing(player))
+                    {
+                        if (mp3_player_play(player, mp3_path) != 0)
+                            fprintf(stderr, "WARNING: Failed to start music playback.\n");
+                        else
+                            printf("[mp3] Music started.\n");
+                    }
                 }
 
                 break;
@@ -465,9 +474,9 @@ int main(int argc, char **argv)
             usleep(frame_delay);
         }
 
-        // Stop music when game ends
+        // Pause music on game over so it can resume if player restarts
         if (player)
-            mp3_player_stop(player);
+            mp3_player_pause(player);
 
         // Game completed successfully
         if(gs.gameover && gs.running)
