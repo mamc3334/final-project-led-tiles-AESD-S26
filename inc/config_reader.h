@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 
 #define CONFIG_MAX_PATH 256
 
@@ -22,8 +23,8 @@
 #define SONG "../beatmaps/LetitBe.csv"
 
 typedef struct {
-    bool running;
-    bool gameover;
+    atomic_bool running;
+    atomic_bool gameover;
 } GameState;
 
 extern GameState gs;

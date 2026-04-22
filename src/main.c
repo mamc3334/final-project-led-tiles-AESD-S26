@@ -41,41 +41,11 @@ static uint8_t check_for_hits(uint8_t keys);
 /*********************
  * ADITYA IMPLEMENT IN FRAME_GENERATOR- THIS IS WHAT I HAD BEFORE THO
  */
-
 void start_frame()
 {
     // frame_count = 0;
     // clear_led_grid();
     return;
-}
-//true = game over
-bool _render_frame(uint8_t active_lanes, uint8_t row)
-{
-    // ...
-    // BELOW IS FOR RENDERING HIT ROW
-    //update hit row
-    // ws2811_led_t flash_row[cfg_ref->matrix_cols];
-    // int width_block = cfg_ref->matrix_cols / cfg_ref->num_players / 4;
-
-    // for (uint8_t lane = 0; lane < 4; lane++) {
-    //     uint8_t lane_bit = (1 << lane);
- 
-    //     if (hits & lane_bit) {
-    //         for (int x = 0; x < width_block; x++) 
-    //         {
-    //             flash_row[x] = color_to_led(cfg_ref->lane_colors[lane].hit_flash);
-    //         }
-    //     } 
-    //     else {
-    //         for (int x = 0; x < width_block; x++) {
-    //             flash_row[x] = color_to_led(cfg_ref->hit_zone);
-    //         }
-    //     }
-    //     //TODO make lane flash row configurable
-    //     grid_set_bottom_lane(flash_row, lane);
-    // }
-
-    return false;
 }
 
 static void signal_handler(int sig)
@@ -293,8 +263,6 @@ void parseargs(int argc, char **argv)
 static uint8_t check_for_hits(uint8_t keys)
 {
     uint32_t idx = get_frame_index();
-    // this should not be from frame_generator.c
-    // current frame should be kept by game logic after parsing files. 
 
     if(idx < 15) return 0; //not enough frames have passed to reach hit zone
     uint8_t active_lanes = get_frame(idx - (gc.matrix_rows - gc.hit_zone_row));
@@ -362,9 +330,6 @@ int main(int argc, char **argv)
     }
 
     //TODO configure frame generator and led grid for custom cfg file
-    
-    gs.running = 1;
-
     uint16_t key_state = 0;
 
     while(gs.running)
@@ -379,13 +344,16 @@ int main(int argc, char **argv)
         //reset input state
         input_reset();
 
+        printf("PRESS ENTER TO START...\n");
+
         //get start key
-        while(1)
+        while(gs.running)
         {
             key_state = input_get_keys();
             if(key_state & (1 << ENTER_KEY))
             {
                 printf("Starting game...\n");
+                usleep(100 * 1000); //delay 100ms
                 break;
             }
             if(key_state & (1 << ESC_KEY))

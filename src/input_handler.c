@@ -221,6 +221,7 @@ void *input_poll(void *arg)
     }
     printf("Exiting input poll\r\n");
     exit:
+    printf("[INPUT_HANDLER]: THREAD EXITING\n");
     input_cleanup();
     pthread_exit(NULL);
 }
