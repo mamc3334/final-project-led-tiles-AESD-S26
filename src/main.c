@@ -263,11 +263,6 @@ void parseargs(int argc, char **argv)
 static uint8_t check_for_hits(uint8_t keys)
 {
     uint32_t idx = get_frame_index();
-<<<<<<< HEAD
-=======
-    // this should not be from frame_generator.c
-    // current frame should be kept by game logic after parsing files. 
->>>>>>> master
 
     if(idx < 15) return 0; //not enough frames have passed to reach hit zone
     uint8_t active_lanes = get_frame(idx - (gc.matrix_rows - gc.hit_zone_row));
