@@ -15,7 +15,7 @@
 #define PORT        9000
 #define BACKLOG     10
 #define BUFFER_SIZE 4096
-#define FILE_PATH   "lights.txt"   // <-- change this to your file
+#define FILE_PATH   "SendBeatmap.csv"   // <-- change this to your file
 
 static volatile int running = 1;
 
