@@ -392,8 +392,10 @@ int main(int argc, char **argv)
         //reset input state
         input_reset();
 
+        printf("PRESS ENTER TO START...\n");
+
         //get start key
-        while(1)
+        while(gs.running)
         {
             key_state = input_get_keys();
             if(key_state & (1 << ENTER_KEY))
