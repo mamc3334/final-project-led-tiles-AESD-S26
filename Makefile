@@ -12,7 +12,7 @@ SUBMOD_DEPS = $(SUBMOD_OBJ:.o=.d)
 
 # Flags
 CFLAGS  = -Wall -Werror -Isrc -Iinc -I$(SUBMOD_DIR) -pthread -lm
-LDFLAGS = -pthread -lm
+LDFLAGS = -pthread -lm -lmpg123 -lout123
 
 # Auto-discover all .c files
 SRCS = $(wildcard src/*.c)

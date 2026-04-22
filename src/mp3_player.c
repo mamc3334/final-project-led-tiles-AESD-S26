@@ -17,7 +17,7 @@
  */
 #define _POSIX_C_SOURCE 200112L
 
-#include "mp3_player.h"
+#include "../inc/mp3_player.h"
 
 #include <mpg123.h>
 #include <out123.h>
