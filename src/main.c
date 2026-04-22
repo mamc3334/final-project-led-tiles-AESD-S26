@@ -269,16 +269,17 @@ static uint8_t check_for_hits(uint8_t keys)
   
     printf("Frame index %d , Frame Index requested %d , active lanes %d , keys %d\r\n",idx , idx - (gc.matrix_rows - gc.hit_zone_row) , active_lanes,keys); 
     uint8_t hits = active_lanes & keys; //bitwise AND to get hits for player 1.
+    uint8_t misses = active_lanes ^ keys; //bitwise XOR to get misses
     	
     printf("Hits %d\r\n",hits);
     //SCORING
     uint32_t score_scale = gc.score_scale;
     p1_score += score_scale * __builtin_popcount(hits);
-    p1_score -= score_scale * __builtin_popcount(active_lanes & ~keys);
+    p1_score -= score_scale * __builtin_popcount(misses);
     printf("score scale %d p1 score %d \r\n",score_scale , p1_score);
     uint8_t p2_keys  = keys >> 4;
     uint8_t p2_hits  = active_lanes & p2_keys;
-    uint8_t p2_misses = active_lanes & ~p2_keys;
+    uint8_t p2_misses = active_lanes ^ p2_keys;
 
     p2_score += score_scale * __builtin_popcount(p2_hits);
     p2_score -= score_scale * __builtin_popcount(p2_misses);
