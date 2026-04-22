@@ -41,62 +41,11 @@ static uint8_t check_for_hits(uint8_t keys);
 /*********************
  * ADITYA IMPLEMENT IN FRAME_GENERATOR- THIS IS WHAT I HAD BEFORE THO
  */
-<<<<<<< HEAD
-uint32_t get_frame_index() {
-    // return frame_count;
-    return 0;
-}
-
-uint8_t get_frame(size_t idx) {
-    // uint8_t frame = 0;
-
-    // for (int lane = 0; lane < 4; lane++) {
-    //     if(frames.frames[idx].lane[lane])
-    //     {
-    //         frame |= (1 << lane);
-    //     }
-    // }
-
-    // return frame;
-    return 0;
-}
-=======
-
->>>>>>> master
 void start_frame()
 {
     // frame_count = 0;
     // clear_led_grid();
     return;
-}
-//true = game over
-bool _render_frame(uint8_t active_lanes, uint8_t row)
-{
-    // ...
-    // BELOW IS FOR RENDERING HIT ROW
-    //update hit row
-    // ws2811_led_t flash_row[cfg_ref->matrix_cols];
-    // int width_block = cfg_ref->matrix_cols / cfg_ref->num_players / 4;
-
-    // for (uint8_t lane = 0; lane < 4; lane++) {
-    //     uint8_t lane_bit = (1 << lane);
- 
-    //     if (hits & lane_bit) {
-    //         for (int x = 0; x < width_block; x++) 
-    //         {
-    //             flash_row[x] = color_to_led(cfg_ref->lane_colors[lane].hit_flash);
-    //         }
-    //     } 
-    //     else {
-    //         for (int x = 0; x < width_block; x++) {
-    //             flash_row[x] = color_to_led(cfg_ref->hit_zone);
-    //         }
-    //     }
-    //     //TODO make lane flash row configurable
-    //     grid_set_bottom_lane(flash_row, lane);
-    // }
-
-    return false;
 }
 
 static void signal_handler(int sig)
