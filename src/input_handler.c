@@ -219,7 +219,7 @@ void *input_poll(void *arg)
                 break;
         }
     }
-
+    printf("Exiting input poll\r\n");
     exit:
     printf("[INPUT_HANDLER]: THREAD EXITING\n");
     input_cleanup();
