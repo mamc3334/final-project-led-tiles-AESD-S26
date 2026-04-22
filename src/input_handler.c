@@ -219,7 +219,7 @@ void *input_poll(void *arg)
                 break;
         }
     }
-
+    printf("Exiting input poll\r\n");
     exit:
     input_cleanup();
     pthread_exit(NULL);

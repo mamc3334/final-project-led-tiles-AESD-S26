@@ -29,23 +29,6 @@ static char *trim(char *s)
 }
 
 /**
- * @brief parse rgb colors
- * @param s config file line
- * @param out Color object pointer to store parsed color in
- * @return 0 on success.
- */
-static int parse_color(const char *s, Color *out)
-{
-    int r, g, b;
-    if (sscanf(s, "%d,%d,%d", &r, &g, &b) != 3) return -1;
-    if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) return -1;
-    out->r = (uint8_t)r;
-    out->g = (uint8_t)g;
-    out->b = (uint8_t)b;
-    return 0;
-}
-
-/**
  * @brief Load default configs into game config
  * 
  * @param gc game config to be loaded into
@@ -61,13 +44,13 @@ void config_load_default(GameConfig *gc)
     gc->hit_zone_row = HIT_ZONE_ROW;
     
     // [colors]
-    gc->background = (Color){0,   0,   0  };
-    gc->hit_zone   = (Color){25,  25,  25 };
-    gc->lane_colors[0] = (LaneColor){{255,0,0},     {255,255,255}};
-    gc->lane_colors[1] = (LaneColor){{255,100,0},   {255,255,255}};
-    gc->lane_colors[2] = (LaneColor){{0,80,255},    {255,255,255}};
-    gc->lane_colors[3] = (LaneColor){{160,0,255},   {255,255,255}};
- 
+    gc->hit_zone_color = 9;
+    gc->hit_color      = 8;
+    gc->lane0_color    = 0;
+    gc->lane1_color    = 1;
+    gc->lane2_color    = 2;
+    gc->lane3_color    = 3;
+    
     /* [game] */
     gc->score_scale = 10;
     gc->num_players = 1;
@@ -146,22 +129,12 @@ int config_loader_load(const char *path, GameConfig *out)
         // [colors]
         else if (strcmp(section, "colors") == 0) 
         {
-            Color c;
-            if (parse_color(val, &c) != 0) {
-                fprintf(stderr, "[config] line %d: bad color value '%s'\n", lineno, val);
-                rc = -2;
-                continue;
-            }
-            if (strcmp(key, "background") == 0) out->background   = c;
-            else if (strcmp(key, "hit_zone") == 0) out->hit_zone     = c;
-            else if (strcmp(key, "lane0_active") == 0) out->lane_colors[0].active    = c;
-            else if (strcmp(key, "lane1_active") == 0) out->lane_colors[1].active    = c;
-            else if (strcmp(key, "lane2_active") == 0) out->lane_colors[2].active    = c;
-            else if (strcmp(key, "lane3_active") == 0) out->lane_colors[3].active    = c;
-            else if (strcmp(key, "lane0_hit") == 0) out->lane_colors[0].hit_flash = c;
-            else if (strcmp(key, "lane1_hit") == 0) out->lane_colors[1].hit_flash = c;
-            else if (strcmp(key, "lane2_hit") == 0) out->lane_colors[2].hit_flash = c;
-            else if (strcmp(key, "lane3_hit") == 0) out->lane_colors[3].hit_flash = c;
+            if (strcmp(key, "hit_zone_color") == 0) out->hit_zone_color = atoi(val);
+            else if (strcmp(key, "hit_color") == 0) out->hit_color = atoi(val);
+            else if (strcmp(key, "lane0_color") == 0) out->lane0_color = atoi(val);
+            else if (strcmp(key, "lane1_color") == 0) out->lane1_color = atoi(val);
+            else if (strcmp(key, "lane2_color") == 0) out->lane2_color = atoi(val);
+            else if (strcmp(key, "lane3_color") == 0) out->lane3_color = atoi(val);
         } 
         // [game]
         else if (strcmp(section, "game") == 0) 
@@ -197,19 +170,16 @@ void config_loader_print(const GameConfig *gc)
     printf("  brightness  = %u\n",   gc->brightness);
     printf("  fps         = %d\n",   gc->fps);
     printf("  hit_zone_row= %d\n",   gc->hit_zone_row);
-    printf("[colors]\n");
-    printf("  background  = %u,%u,%u\n", gc->background.r, gc->background.g, gc->background.b);
-    printf("  hit_zone    = %u,%u,%u\n", gc->hit_zone.r,   gc->hit_zone.g,   gc->hit_zone.b);
-    for (int i = 0; i < 4; i++) {
-        printf("  lane%d active = %u,%u,%u  hit = %u,%u,%u\n", i,
-               gc->lane_colors[i].active.r,
-               gc->lane_colors[i].active.g,
-               gc->lane_colors[i].active.b,
-               gc->lane_colors[i].hit_flash.r,
-               gc->lane_colors[i].hit_flash.g,
-               gc->lane_colors[i].hit_flash.b);
-    }
-    printf("[game]\n");
+
+    printf("\n[colors]\n");
+    printf("  hit_zone_color = %d\n",   gc->hit_zone_color);
+    printf("  hit_color      = %d\n",   gc->hit_color);
+    printf("  lane0_color    = %d\n",   gc->lane0_color);
+    printf("  lane1_color    = %d\n",   gc->lane1_color);
+    printf("  lane2_color    = %d\n",   gc->lane2_color);
+    printf("  lane3_color    = %d\n",   gc->lane3_color);
+
+    printf("\n[game]\n");
     printf("  score_scale = %d\n", gc->score_scale);
     printf("  num_players = %d\n", gc->num_players);
     printf("  song        = %s\n", gc->song);
