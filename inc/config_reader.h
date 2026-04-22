@@ -8,11 +8,12 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 
 #define CONFIG_MAX_PATH 256
 
 //DEFAULT CONFIG
-#define GPIO        18
+#define GPIO        10
 #define MATRIX_WIDTH    16
 #define MATRIX_HEIGHT   16
 #define BRIGHTNESS      100
@@ -22,8 +23,8 @@
 #define SONG "../beatmaps/LetitBe.csv"
 
 typedef struct {
-    bool running;
-    bool gameover;
+    atomic_bool running;
+    atomic_bool gameover;
 } GameState;
 
 extern GameState gs;

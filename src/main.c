@@ -310,8 +310,6 @@ void parseargs(int argc, char **argv)
 static uint8_t check_for_hits(uint8_t keys)
 {
     uint32_t idx = get_frame_index();
-    // this should not be from frame_generator.c
-    // current frame should be kept by game logic after parsing files. 
 
     if(idx < 15) return 0; //not enough frames have passed to reach hit zone
     uint8_t active_lanes = get_frame(idx - (gc.matrix_rows - gc.hit_zone_row));
@@ -367,6 +365,8 @@ int main(int argc, char **argv)
     //load frame generator
     init_frame("../beatmaps/LetitBe.csv");
 
+    gs.running = 1;
+
     //Get input device
     if((retval = input_init()) != 0)
     {
@@ -375,9 +375,6 @@ int main(int argc, char **argv)
     }
 
     //TODO configure frame generator and led grid for custom cfg file
-    
-    gs.running = 1;
-
     uint16_t key_state = 0;
 
     while(gs.running)
@@ -401,6 +398,7 @@ int main(int argc, char **argv)
             if(key_state & (1 << ENTER_KEY))
             {
                 printf("Starting game...\n");
+                usleep(100 * 1000); //delay 100ms
                 break;
             }
             if(key_state & (1 << ESC_KEY))
